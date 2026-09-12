@@ -160,42 +160,35 @@ are all rejected at the boundary.
 
 ## Figures
 
-`python examples/full_demo.py` runs the whole workflow on one machine and
-writes four figures to `examples/figures/`:
+`python examples/full_demo.py` runs the whole workflow and writes all four
+figures to `examples/figures/`.
 
-### The cycle
+<table>
+<tr>
+<td width="50%"><img src="examples/figures/cycle_diagram.png" alt="cycle diagram"></td>
+<td width="50%"><img src="examples/figures/sweep.png" alt="parameter sweep"></td>
+</tr>
+<tr>
+<td><b>The cycle.</b> Energy gap against population — the quantum P–V diagram.
+Isochores vertical, driven strokes horizontal; the enclosed area is the work.</td>
+<td><b>Optimisation.</b> Figure of merit against a swept parameter, with the
+optimum and how robust it is.</td>
+</tr>
+<tr>
+<td width="50%"><img src="examples/figures/scan.png" alt="joint scan"></td>
+<td width="50%"><img src="examples/figures/distribution.png" alt="trajectory distribution"></td>
+</tr>
+<tr>
+<td><b>Joint scan.</b> The same metric over two parameters at once, showing both
+the joint optimum and the one sequential tuning would find.</td>
+<td><b>Reliability.</b> Heat arrives in discrete quanta, so a run absorbs one,
+emits one, or nothing. The average falls between the peaks — a value no single
+run produces.</td>
+</tr>
+</table>
 
-![cycle diagram](examples/figures/cycle_diagram.png)
-
-Energy gap against population — the quantum equivalent of a P–V diagram.
-Isochores run vertically (the gap is fixed while population relaxes toward the
-bath), driven strokes horizontally (population frozen while the gap is swept).
-The enclosed area is the work.
-
-### Optimisation
-
-![parameter sweep](examples/figures/sweep.png)
-
-Figure of merit against a swept parameter, with the optimum and its robustness
-marked.
-
-![joint scan](examples/figures/scan.png)
-
-The same metric scanned over two parameters at once, showing both the joint
-optimum and the one sequential tuning would have found.
-
-### Reliability
-
-![trajectory distribution](examples/figures/distribution.png)
-
-Heat arrives in discrete quanta, so the histogram has separated peaks at one
-emission, no exchange, and one absorption. The mean the master equation reports
-falls between them — a value no individual run ever produces. This refrigerator
-cools on average and fails to draw any heat from the cold bath on more than
-half of individual runs.
-
-Plotting needs matplotlib, which is an optional dependency; the numerical API
-does not require it.
+Plotting needs matplotlib, an optional dependency; the numerical API does not
+require it.
 
 ## Sweeps and joint scans
 
