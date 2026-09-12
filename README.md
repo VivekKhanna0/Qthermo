@@ -10,6 +10,22 @@ master equation, or trajectory-resolved with full distributions.
 physics below is validated against analytic limits; everything beyond that is
 roadmap, not a claim.
 
+## Quick start
+
+```bash
+git clone https://github.com/VivekKhanna0/Qthermo.git
+cd Qthermo
+pip install numpy scipy matplotlib
+python examples/full_demo.py
+```
+
+That runs the whole workflow on one machine and writes every figure below to
+`examples/figures/`. To check the physics instead:
+
+```bash
+python tests/test_physics.py     # 14 tests, all should pass
+```
+
 ## Why
 
 Quantum thermodynamics has no shared implementation of its own core
@@ -147,17 +163,36 @@ are all rejected at the boundary.
 `python examples/full_demo.py` runs the whole workflow on one machine and
 writes four figures to `examples/figures/`:
 
-| figure | what it shows |
-|---|---|
-| `cycle_diagram.png` | energy gap against population -- the quantum P-V diagram. Isochores vertical, driven strokes horizontal, enclosed area is the work. |
-| `sweep.png` | figure of merit against a swept parameter, optimum marked |
-| `scan.png` | joint two-parameter scan, with joint and sequential optima |
-| `distribution.png` | trajectory histogram against the master-equation mean |
+### The cycle
 
-The distribution figure is the one worth looking at: heat arrives in discrete
-quanta, so the histogram has separated peaks at one emission, no exchange, and
-one absorption. The mean value the master equation reports falls between them
--- it is a number no individual run ever produces.
+![cycle diagram](examples/figures/cycle_diagram.png)
+
+Energy gap against population — the quantum equivalent of a P–V diagram.
+Isochores run vertically (the gap is fixed while population relaxes toward the
+bath), driven strokes horizontally (population frozen while the gap is swept).
+The enclosed area is the work.
+
+### Optimisation
+
+![parameter sweep](examples/figures/sweep.png)
+
+Figure of merit against a swept parameter, with the optimum and its robustness
+marked.
+
+![joint scan](examples/figures/scan.png)
+
+The same metric scanned over two parameters at once, showing both the joint
+optimum and the one sequential tuning would have found.
+
+### Reliability
+
+![trajectory distribution](examples/figures/distribution.png)
+
+Heat arrives in discrete quanta, so the histogram has separated peaks at one
+emission, no exchange, and one absorption. The mean the master equation reports
+falls between them — a value no individual run ever produces. This refrigerator
+cools on average and fails to draw any heat from the cold bath on more than
+half of individual runs.
 
 Plotting needs matplotlib, which is an optional dependency; the numerical API
 does not require it.
