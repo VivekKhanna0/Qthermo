@@ -216,6 +216,57 @@ def test_negative_entropy_production_warns():
     assert any(issubclass(x.category, RuntimeWarning) for x in caught)
 
 
+def test_ergotropy_limits():
+    """Ergotropy is zero for passive states and equals the gap for an inversion."""
+    H = qt.qubit_hamiltonian(1.0)
+
+    # Gibbs states are passive at any temperature: no work extractable.
+    for temperature in (0.3, 1.0, 5.0, 50.0):
+        assert abs(qt.ergotropy(qt.thermal_state(H, temperature), H)) < 1e-12
+
+    # A fully inverted state gives up the whole energy gap.
+    excited = np.array([[0, 0], [0, 1]], dtype=complex)
+    assert abs(qt.ergotropy(excited, H) - 1.0) < 1e-12
+
+    # The ground state has nothing to give.
+    ground = np.array([[1, 0], [0, 0]], dtype=complex)
+    assert abs(qt.ergotropy(ground, H)) < 1e-12
+
+
+def test_ergotropy_non_negative():
+    """Ergotropy cannot be negative: the passive state is an energy minimum."""
+    rng = np.random.default_rng(0)
+    H = qt.qubit_hamiltonian(1.3)
+    for _ in range(25):
+        A = rng.normal(size=(2, 2)) + 1j * rng.normal(size=(2, 2))
+        rho = A @ A.conj().T
+        rho /= np.trace(rho)
+        assert qt.ergotropy(rho, H) > -1e-12
+
+
+def test_pareto_front_is_monotonic():
+    """Higher cooling power must cost efficiency: the front trades one off."""
+    from qthermo.analysis import pareto_front
+
+    ramp = lambda a, b, tau: (lambda t: qt.qubit_hamiltonian(a + (t/tau)*(b-a)))
+
+    def build(tau_iso):
+        return Cycle([
+            Stroke("cold_iso", qt.qubit_hamiltonian(1.0), tau_iso,
+                   qt.thermal_bath(1.0, 1.0, 1.0), temperature=1.0),
+            Stroke("compress", ramp(1.0, 1.5, 0.02), 0.02),
+            Stroke("hot_iso", qt.qubit_hamiltonian(1.5), tau_iso,
+                   qt.thermal_bath(1.0, 1.5, 1.3), temperature=1.3),
+            Stroke("expand", ramp(1.5, 1.0, 0.02), 0.02),
+        ])
+
+    front = pareto_front(build, np.linspace(2.0, 30.0, 8), ("cold_iso",))
+    assert len(front.power) == len(front.efficiency)
+    assert np.all(np.isfinite(front.power))
+    # short cycles give more power per unit time than long ones
+    assert front.power[0] > front.power[-1]
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):
