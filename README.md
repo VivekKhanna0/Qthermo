@@ -23,7 +23,7 @@ That runs the whole workflow on one machine and writes every figure below to
 `examples/figures/`. To check the physics instead:
 
 ```bash
-python tests/test_physics.py     # 14 tests, all should pass
+python tests/test_physics.py     # 17 tests, all should pass
 ```
 
 ## Why
@@ -118,6 +118,9 @@ interface changed.
 | Otto engine efficiency -> `1 - ω_low/ω_high` | `0.6000` vs `0.6000` |
 | Invalid input raises `QThermoError` rather than returning a number | 6 cases |
 | Sweep locates an interior optimum | passes |
+| Ergotropy zero for Gibbs states, equal to the gap for an inversion | passes |
+| Ergotropy non-negative over random states | passes |
+| Power/efficiency front trades one against the other | passes |
 | Inconsistent bath temperature warns instead of silently returning σ < 0 | passes |
 
 Run them with `python tests/test_physics.py`.
@@ -189,6 +192,32 @@ run produces.</td>
 
 Plotting needs matplotlib, an optional dependency; the numerical API does not
 require it.
+
+## Ergotropy
+
+How much of a state's energy is actually useful? Ergotropy is the most work a
+cyclic unitary can extract, and it is exactly zero for a thermal state at any
+temperature — a Gibbs state is already passive, so nothing can be taken from it
+without a second bath.
+
+```python
+qt.ergotropy(qt.thermal_state(H, 1.0), H)   # 0.0, at any temperature
+qt.ergotropy(excited_state, H)              # the full energy gap
+```
+
+## Power against efficiency
+
+Run a machine infinitely slowly and it reaches its best efficiency while
+delivering no power. Run it fast and the reverse. Neither endpoint is where you
+operate, so the trade-off curve is what gets reported.
+
+```python
+from qthermo.analysis import pareto_front
+
+front = pareto_front(build_cycle, np.linspace(2.0, 30.0, 12), ("cold_iso",))
+front.knee()     # the parameter maximising power x COP
+print(front.report())
+```
 
 ## Sweeps and joint scans
 
