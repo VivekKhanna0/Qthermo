@@ -21,7 +21,8 @@ import numpy as np
 from .core import _as_matrix
 from .validation import QThermoError
 
-__all__ = ["SweepResult", "ScanResult", "sweep", "scan_2d", "compare_channels"]
+__all__ = ["SweepResult", "ScanResult", "ParetoFront", "sweep", "scan_2d",
+           "compare_channels", "pareto_front"]
 
 
 def _default_initial_state(cycle):
@@ -261,3 +262,66 @@ def compare_channels(build_cycle, channels: dict, metrics: dict,
                 row[metric_name] = np.nan
         table[channel_name] = row
     return table
+
+
+@dataclass
+class ParetoFront:
+    """Cooling power against efficiency over a swept control parameter.
+
+    A thermal machine run infinitely slowly reaches its best efficiency and
+    delivers no power; run fast it delivers power at a worse efficiency.
+    Neither endpoint is the useful operating point, which is why the trade-off
+    curve rather than either number alone is what gets reported.
+    """
+
+    values: np.ndarray
+    power: np.ndarray
+    efficiency: np.ndarray
+    parameter: str
+
+    def knee(self) -> tuple[float, float, float]:
+        """The point maximising the product of power and efficiency.
+
+        Returns ``(parameter, power, efficiency)``.
+        """
+        product = self.power * self.efficiency
+        index = int(np.nanargmax(np.where(np.isfinite(product), product, -np.inf)))
+        return (float(self.values[index]), float(self.power[index]),
+                float(self.efficiency[index]))
+
+    def report(self) -> str:
+        best_value, best_power, best_efficiency = self.knee()
+        lines = [f"{self.parameter:>12}{'power':>14}{'COP':>12}", "-" * 38]
+        for value, power, efficiency in zip(self.values, self.power, self.efficiency):
+            marker = " <--" if value == best_value else ""
+            lines.append(f"{value:>12.3f}{power:>14.4e}{efficiency:>12.4f}{marker}")
+        lines.append("-" * 38)
+        lines.append(f"best power x COP at {self.parameter} = {best_value:.3f}")
+        return "\n".join(lines)
+
+
+def pareto_front(build_cycle, values, cold_strokes, initial_state=None,
+                 parameter: str = "parameter") -> ParetoFront:
+    """Trace cooling power against coefficient of performance.
+
+    ``build_cycle(value) -> Cycle``. The swept parameter is usually a duration
+    or a coupling strength -- anything that moves the machine between the slow,
+    efficient limit and the fast, powerful one.
+    """
+    values = np.asarray(list(values), dtype=float)
+    power = np.empty(len(values))
+    efficiency = np.empty(len(values))
+
+    for index, value in enumerate(values):
+        cycle = build_cycle(value)
+        state = (initial_state if initial_state is not None
+                 else _default_initial_state(cycle))
+        try:
+            result, _, _ = cycle.limit_cycle(state)
+            power[index] = result.cooling_power(cold_strokes, cycle.duration)
+            efficiency[index] = result.cop(cold_strokes)
+        except Exception:
+            power[index] = np.nan
+            efficiency[index] = np.nan
+
+    return ParetoFront(values, power, efficiency, parameter)
