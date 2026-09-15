@@ -15,6 +15,8 @@ import numpy as np
 
 __all__ = [
     "internal_energy",
+    "passive_state",
+    "ergotropy",
     "von_neumann_entropy",
     "thermal_state",
     "free_energy",
@@ -122,3 +124,32 @@ def entropy_production(rho_initial, rho_final, heat: float, temperature: float,
             stacklevel=2,
         )
     return sigma
+
+
+def passive_state(rho, H):
+    """The passive state reachable from ``rho`` by unitary evolution.
+
+    A state is passive when no unitary can lower its energy further. It is
+    built by pairing the largest population with the lowest energy level, the
+    next largest with the next level, and so on -- the arrangement that
+    minimises Tr[H rho] over all states with the same spectrum.
+    """
+    rho, H = _as_matrix(rho), _as_matrix(H)
+    populations = np.sort(np.linalg.eigvalsh(rho).real)[::-1]   # descending
+    energies, eigenvectors = np.linalg.eigh(H)                   # ascending
+    return (eigenvectors * populations) @ eigenvectors.conj().T
+
+
+def ergotropy(rho, H) -> float:
+    """Maximum work extractable from ``rho`` by a cyclic unitary process.
+
+        W_erg = Tr[H rho] - Tr[H rho_passive]
+
+    Ergotropy is the part of a state's energy that is thermodynamically
+    useful. It is non-negative by construction, and it is exactly zero for a
+    thermal state at any temperature -- a Gibbs state is already passive, so
+    no work can be extracted from it without a second bath. That makes it the
+    natural measure of how far a state is from useless.
+    """
+    rho, H = _as_matrix(rho), _as_matrix(H)
+    return float(internal_energy(rho, H) - internal_energy(passive_state(rho, H), H))
