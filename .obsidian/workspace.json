@@ -11,14 +11,13 @@
             "id": "5ee666850e76b78a",
             "type": "leaf",
             "state": {
-              "type": "markdown",
+              "type": "bases",
               "state": {
-                "file": "notes/architecture.md",
-                "mode": "source",
-                "source": false
+                "file": "Untitled.base",
+                "viewName": "Table"
               },
-              "icon": "lucide-file",
-              "title": "architecture"
+              "icon": "lucide-table",
+              "title": "Untitled"
             }
           }
         ]
@@ -189,12 +188,35 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "be3b55931661b675",
+  "active": "5ee666850e76b78a",
   "lastOpenFiles": [
-    "Untitled.md",
-    "Untitled 1.canvas",
+    "notes/architecture.md",
+    "notes/gotchas/stroke-temperature-requires-bath.md",
+    "notes/gotchas/entropy-production-sign-warning.md",
+    "notes/gotchas",
+    "gotchas",
+    "untitled folder",
+    "notes/decisions/qubit-hamiltonian-sign.md",
+    "notes/decisions/qutip-optional.md",
+    "notes/decisions/heat-work-split.md",
+    "notes/decisions",
+    "decisions",
+    "notes/modules/validation.md",
+    "notes/modules/plotting.md",
+    "notes/modules/analysis.md",
+    "notes/modules/stochastic.md",
+    "notes/modules/channels.md",
+    "notes/modules/cycle.md",
+    "notes/modules/solver.md",
+    "notes/modules/core.md",
+    "notes/core.md",
+    "notes/modules",
+    "notes/untitled folder",
+    "notes/CLAUDE.local.md",
     "Untitled.base",
+    "Untitled 1.canvas",
     "Untitled.canvas",
+    "Untitled.md",
     "2026-09-20.md"
   ]
 }
