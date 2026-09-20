@@ -24,6 +24,8 @@ from .channels import (
 )
 from .core import (
     entropy_production,
+    ergotropy,
+    passive_state,
     free_energy,
     heat_work_increments,
     internal_energy,
@@ -41,6 +43,16 @@ from .cycle import Cycle, CycleResult, Stroke, StrokeResult
 from .solver import evolve, lindbladian
 from .validation import QThermoError
 from .stochastic import TrajectoryEnsemble, jarzynski_tpm, unravel
+from .subsystems import (
+    SiteResult,
+    SubsystemResult,
+    embed,
+    mutual_information,
+    partial_trace,
+    resolve_cycle,
+    resolve_stroke,
+    total_correlation,
+)
 
 __version__ = "0.2.0"
 
@@ -58,11 +70,14 @@ __all__ = [
     "evolve", "lindbladian",
     "internal_energy", "von_neumann_entropy", "entropy_production",
     "thermal_state", "free_energy", "heat_work_increments",
+    "ergotropy", "passive_state",
     "qubit_hamiltonian", "thermal_bath", "amplitude_damping",
     "pure_dephasing", "bit_flip", "mean_occupation",
     "sigma_x", "sigma_y", "sigma_z", "sigma_plus", "sigma_minus",
     "unravel", "jarzynski_tpm", "TrajectoryEnsemble",
     "QThermoError",
     "sweep", "scan_2d", "compare_channels", "SweepResult", "ScanResult",
+    "partial_trace", "embed", "total_correlation", "mutual_information",
+    "resolve_stroke", "resolve_cycle", "SiteResult", "SubsystemResult",
     "__version__",
 ]
