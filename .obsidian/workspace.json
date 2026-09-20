@@ -4,20 +4,21 @@
     "type": "split",
     "children": [
       {
-        "id": "46d2833b134be6dc",
+        "id": "a45f7b3c7aa1ddd1",
         "type": "tabs",
         "children": [
           {
-            "id": "b4f7f33faa43eafa",
+            "id": "5ee666850e76b78a",
             "type": "leaf",
             "state": {
-              "type": "bases",
+              "type": "markdown",
               "state": {
-                "file": "Untitled.base",
-                "viewName": "Table"
+                "file": "notes/architecture.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "lucide-table",
-              "title": "Untitled"
+              "icon": "lucide-file",
+              "title": "architecture"
             }
           }
         ]
@@ -78,8 +79,7 @@
               "title": "Bookmarks"
             }
           }
-        ],
-        "currentTab": 2
+        ]
       }
     ],
     "direction": "horizontal",
@@ -185,13 +185,15 @@
       "daily-notes:Open today's daily note": false,
       "templates:Insert template": false,
       "command-palette:Open command palette": false,
-      "bases:Create new base": false
+      "bases:Create new base": false,
+      "obsidian-git:Open Git source control": false
     }
   },
-  "active": "dbd25b97c8ccd68f",
+  "active": "be3b55931661b675",
   "lastOpenFiles": [
-    "Untitled.base",
+    "Untitled.md",
     "Untitled 1.canvas",
+    "Untitled.base",
     "Untitled.canvas",
     "2026-09-20.md"
   ]
