@@ -11,13 +11,14 @@
             "id": "5ee666850e76b78a",
             "type": "leaf",
             "state": {
-              "type": "bases",
+              "type": "markdown",
               "state": {
-                "file": "Untitled.base",
-                "viewName": "Table"
+                "file": "notes/gotchas/entropy-production-sign-warning.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "lucide-table",
-              "title": "Untitled"
+              "icon": "lucide-file",
+              "title": "entropy-production-sign-warning"
             }
           }
         ]
@@ -190,6 +191,7 @@
   },
   "active": "5ee666850e76b78a",
   "lastOpenFiles": [
+    "Untitled.base",
     "notes/architecture.md",
     "notes/gotchas/stroke-temperature-requires-bath.md",
     "notes/gotchas/entropy-production-sign-warning.md",
@@ -213,7 +215,6 @@
     "notes/modules",
     "notes/untitled folder",
     "notes/CLAUDE.local.md",
-    "Untitled.base",
     "Untitled 1.canvas",
     "Untitled.canvas",
     "Untitled.md",
