@@ -1,0 +1,75 @@
+# Changelog
+
+## 0.4.0
+
+Aimed at research use: multi-qubit machines, trustworthy bath models, exact
+fluctuations, and checks for known modelling traps. Every item below is backed
+by tests and, where a published or closed-form result exists, by a row in
+`python -m qthermo.benchmarks`.
+
+**Bath models and continuous machines**
+- `davies_bath` (global, detailed balance for any H; stored sparse in the
+  eigenbasis, so global baths scale to a few hundred levels), `local_bath`,
+  `instantaneous_bath` (baths that follow a driven H).
+- `analyze` / `steady_state`: exact steady states (uniqueness detected), per-bath
+  heat currents, entropy production rate, COP/efficiency and Carnot bounds,
+  `compare_master_equations`, `relaxation_time`.
+- `qthermo.models`: absorption refrigerator, three-level maser, XXZ chain,
+  two-qubit heat valve. Each can be rebuilt under local or global baths.
+
+**Diagnostics**
+- `audit`: runs every check in one call and reports it in plain language.
+- Warnings or refusals for:
+  - non-unique steady states;
+  - baths that cannot thermalise because of a symmetry;
+  - degenerate levels whose zero-frequency rate is undefined;
+  - isochores shorter than the relaxation time;
+  - bond currents that vanish identically under the secular approximation;
+  - bath temperatures inconsistent with the jump rates.
+
+**Where the heat goes**
+- `heat_flow_map`, `plot_machine`: site-resolved flows, virtual temperatures,
+  mutual information, negativity, concurrence.
+- `site_dynamics`, `plot_site_dynamics`, `plot_bloch_paths`: per-qubit views
+  through a cycle.
+
+**Fluctuations**
+- `current_statistics`: exact noise, TUR and KUR ratios. `scaled_cgf`: the
+  full counting statistics.
+- `cycle_counting`: exact single-cycle heat distributions of stroke machines,
+  plus long-run statistics.
+
+**Stroke machines**
+- Strokes take `Bath` objects (several per stroke, heat per bath) and
+  time-dependent baths.
+- `ideal_otto`: quasi-static limit for any Hamiltonian pair, with pairing by
+  adiabatic continuation. `otto_cycle`: finite-time interacting Otto cycles.
+- `classify`, `mode_map`, `plot_mode_map`: engine, refrigerator, accelerator
+  and heater regions.
+
+**Beyond weak coupling, information, batteries, protocols**
+- `reaction_coordinate_model`, `mean_force_state`, `ultrastrong_limit_state`,
+  `rc_convergence`.
+- `landauer_erasure`, `geodesic_schedule`, `thermodynamic_length`.
+- `friction`, `optimal_schedule`: minimum-dissipation protocols for any H(λ).
+- `qthermo.batteries`: coherent, locked and asymptotic ergotropy; Dicke
+  charging and its collective advantage.
+
+**Infrastructure**
+- CI on Python 3.10 and 3.12, with QuTiP cross-validation and every example
+  script run.
+- `python -m qthermo.benchmarks`.
+- `export`, `save` and `load` (JSON with the version recorded).
+- `docs/physics.md`: exact definitions. `examples/tutorial.ipynb`.
+- `unravel` vectorised across trajectories (15× faster).
+
+**Fixes**
+- `unravel`: trajectories whose jumps cancelled carried heat of about
+  +1e-16 instead of 0, so predicates like `q <= 0` misclassified them. The
+  earlier README claim that the Otto fridge "draws no heat about half the
+  time" was this artifact; the exact value is 0.7955.
+
+## 0.2.0
+
+Single-qubit stroke cycles, trajectory unravelling, sweeps, Pareto fronts,
+subsystem resolution.

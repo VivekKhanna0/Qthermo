@@ -243,9 +243,89 @@ reports `T σ`.
   steady state.
 - **Warnings:** it warns if `τ_iso < 5 ×` the population relaxation time.
 
+## Exact counting statistics of cycles — `cycle_counting`
+
+Each jump operator `L_j` of a counted stroke gets a weight `ν_j`: `+1` if it
+raises the energy of the stroke's Hamiltonian, `−1` if it lowers it (times a
+number, if one is given). The tilted generator is
+
+    𝓛(χ) = 𝓛 + Σ_j (e^{iχν_j} − 1) L_j ⊗ L_j*
+
+Each stroke propagator is `exp(𝓛(χ) τ)` for constant strokes, and a
+midpoint-rule product over `substeps` slices otherwise.
+`G(χ) = Tr[P_N(χ)…P_1(χ) ρ_start]`, and `P(n)` is its discrete Fourier
+transform on `4 n_max` points. By default `ρ_start` is the limit-cycle state.
+The long-run statistics per cycle come from `θ(s) = ln Λ(s)`, the dominant
+eigenvalue of the tilted one-cycle propagator, with `θ'(0)` the mean and
+`θ''(0)` the variance, by finite differences with `h = 1e-3`.
+
+## Operation modes — `classify`
+
+With `W` the work done on the machine and `Q_h`, `Q_c` the heats in:
+
+| mode | signs |
+|---|---|
+| engine | `W<0, Q_h>0, Q_c<0` |
+| refrigerator | `W>0, Q_c>0, Q_h<0` |
+| accelerator | `W>0, Q_h>0, Q_c<0` |
+| heater | `W>0, Q_h≤0, Q_c≤0` |
+
+Magnitudes below `1e-12 ×` the largest count as zero. Any other pattern is
+`forbidden`, i.e. it violates the second law.
+
+For a `SteadyState`, `W = work_rate`. That is non-zero only when the currents
+are measured with an energy operator that makes work explicit (local baths
+with `H0`, rotating frames).
+
+## Batteries — `qthermo.batteries`
+
+- **incoherent ergotropy:** the ergotropy of `ρ` dephased in the eigenbasis of
+  `H`, keeping coherences inside degenerate eigenspaces.
+- **coherent ergotropy:** total minus incoherent.
+- **locked ergotropy:** `W(ρ) − Σ_i W(ρ_i)` for `H = Σ_i h_i`.
+- **asymptotic ergotropy:** `U(ρ) − U(G_β)`, where `S(G_β) = S(ρ)` and `β`
+  is found by bracketing.
+- **Dicke battery:** `H = ω(J_z + N/2) + ω a†a + g(J_+ + J_−)(a + a†)` in the
+  symmetric subspace, with the cavity truncated at `photons + N + 6`.
+  Charging power is `max_t E(t)/t` over the window `1.2π/g`.
+  `collective_advantage` fits the exponent on the three largest N.
+
+## Multi-qubit views of cycles — `site_dynamics`
+
+Evaluated at every stored state of every stroke:
+
+- per site: `⟨h_i⟩`, the virtual temperature and (for qubits) the Bloch vector
+  `⟨σ_{x,y,z}⟩`;
+- per pair: mutual information and concurrence;
+- the total correlation `Σ_i S_i − S`.
+
+## Model audit — `audit`
+
+The checks run are:
+
+- **uniqueness:** the steady-state solve.
+- **relaxation time:** `relaxation_time(populations_only=True)`; the full
+  Liouvillian gap is also computed up to 16 levels.
+- **second law:** `σ̇ ≥ 0`.
+- **direction:** heat must not flow from the colder bath to the hotter one
+  without work.
+- **detailed balance vs declared T:** for each pair of jump operators that are
+  adjoint up to scale, with energy change `ω`, the implied
+  `T = ω / ln(|L_down|²/|L_up|²)`. The finding reports the median.
+- **local vs global:** for rebuildable models, the largest relative current
+  difference and any sign flips.
+- **internal currents:** whether they vanish because the steady state is
+  diagonal in H.
+- **uncertainty relations:** TUR and KUR ratios of each bath's heat current,
+  up to 32 levels.
+
 ## Trajectories — `unravel`
 
-Monte Carlo wave-function unravelling:
+Monte Carlo wave-function unravelling, all trajectories propagated together.
+Jump times are resolved to one time step, which biases the statistics at
+`O(rate × dt)`; `cycle_counting` gives the exact answer to compare against.
+Heats within `1e-9 ×` scale of zero are set to exactly zero, so that
+`q <= 0` counts trajectories whose jumps cancel.
 
 - **Heat:** the energy change `⟨ψ|H|ψ⟩` across each jump.
 - **Work:** the first-law remainder on each trajectory.
