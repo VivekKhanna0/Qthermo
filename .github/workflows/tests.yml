@@ -39,6 +39,12 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
+      - name: Execute the tutorial notebook
+        env:
+          MPLBACKEND: Agg
+        run: |
+          pip install nbformat nbclient ipykernel
+          python docs/build_tutorial.py
       - name: Run every example script
         env:
           MPLBACKEND: Agg

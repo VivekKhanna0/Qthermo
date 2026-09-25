@@ -27,6 +27,9 @@ for a human: `README.md` (pitch, traps table, figures), `docs/physics.md`
 - modules/information.md — finite-time Landauer, geodesic protocols (`information.py`)
 - modules/engines.md — interacting Otto engines (`engines.py`)
 - modules/benchmarks.md — the benchmark registry (`benchmarks.py`)
+- modules/floquet.md, modules/transient.md, modules/response.md, modules/geometry.md
+- modules/extras.md — audit, counting, modes, batteries, export, units
+- gotchas/stiff-steady-states.md, gotchas/unravel-zero-heat.md
 - decisions/eigenbasis-storage.md — why Davies ops live sparse in the eigenbasis
 - gotchas/local-master-equation.md, gotchas/secular-blind-currents.md,
   gotchas/degenerate-zero-frequency.md, gotchas/symmetry-blocked-thermalisation.md

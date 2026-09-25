@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.0
+
+- **Periodically driven machines:** `floquet_analyze`, `DrivenBath` and
+  `window_spectrum`, a Floquet–Markov master equation with per-bath currents
+  and power to the drive. It reduces exactly to Davies without a drive,
+  reproduces the Bessel sideband weights, and gives the tight-coupling
+  efficiency and COP of the modulated-qubit machine.
+- **Transients:** `transient` and `product_thermal_state` give currents,
+  cumulative heat and virtual temperatures after switching a machine on. This
+  reproduces single-shot cooling below the steady state.
+- **Linear response:** `response` gives the conductance and Onsager matrices,
+  reciprocity and conservation checks, the Kedem–Caplan coupling, and
+  transistor gain. New model: `models.thermal_transistor`.
+- **Thermodynamic geometry:** `friction`, `optimal_schedule` and
+  `excess_work`, giving minimum-dissipation schedules for any H(λ).
+- **Larger systems:** ILU-preconditioned GMRES for steady states above 128
+  levels. An 8-qubit chain goes from 158 s and 6 GB to 26 s and 0.6 GB.
+- **Lab units:** `LabUnits` converts to and from GHz, mK, seconds and watts.
+- **New examples:** the thermal diode tutorial notebook, driven machine,
+  transient cooling, thermal transistor, transport scaling, optimal protocol
+  and multi-qubit cycle.
+
 ## 0.4.0
 
 Aimed at research use: multi-qubit machines, trustworthy bath models, exact
