@@ -110,3 +110,29 @@ def test_ergotropy_and_passivity_invariants(seed):
     assert abs(qt.ergotropy(qt.passive_state(rho, H), H)) < 1e-12
     assert abs(qt.ergotropy(qt.thermal_state(H, rng.uniform(0.2, 3)), H)) < 1e-12
     assert qt.batteries.asymptotic_ergotropy(rho, H) >= W - 1e-9
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_local_baths_obey_the_second_law_with_bare_hamiltonian_heat(seed):
+    """De Chiara et al., NJP 20, 113024 (2018), for arbitrary couplings.
+
+    Each local dissipator obeys detailed balance with respect to H0, so
+    Spohn's inequality gives -sum_k J_k^(H0) / T_k >= 0 in any steady state,
+    however strong the (unphysical-for-local-ME) coupling.
+    """
+    rng = np.random.default_rng(300 + seed)
+    dims = [[2, 2], [2, 3], [2, 2, 2]][seed % 3]
+    local = [np.diag(np.sort(rng.uniform(0.3, 2, n))).astype(complex) for n in dims]
+    H0 = sum(qt.embed(h, i, dims) for i, h in enumerate(local))
+    H = H0 + random_hermitian(int(np.prod(dims)), rng, scale=rng.uniform(0.1, 1.5))
+    baths = []
+    for k, site in enumerate(rng.permutation(len(dims))[: int(rng.integers(1, len(dims) + 1))]):
+        A = random_hermitian(dims[site], rng)
+        baths.append(qt.local_bath(local[site], A, rng.uniform(0.3, 4.0), int(site), dims,
+                                   gamma=10 ** rng.uniform(-2, 0), name=f"b{k}"))
+    try:
+        r = qt.analyze(H, baths, energy=H0)
+    except qt.QThermoError:
+        pytest.skip("random coupling produced a non-unique steady state")
+    scale = max(abs(J) for J in r.currents.values())
+    assert r.entropy_production_rate > -1e-10 * max(scale, 1.0)
