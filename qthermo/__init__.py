@@ -79,6 +79,7 @@ from .network import (
     correlation_matrices,
     heat_flow_map,
     negativity,
+    site_dynamics,
     virtual_temperature,
 )
 from .fluctuations import (
@@ -119,7 +120,7 @@ def __getattr__(name):
     if name in ("plot_cycle", "plot_sweep", "plot_scan",
                 "plot_distribution", "plot_dashboard",
                 "plot_heat_network", "plot_correlations", "plot_machine",
-                "plot_mode_map"):
+                "plot_mode_map", "plot_site_dynamics", "plot_bloch_paths"):
         from . import plotting
         return getattr(plotting, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -144,7 +145,7 @@ __all__ = [
     "compare_master_equations", "MasterEquationComparison", "trace_distance",
     "models",
     "heat_flow_map", "HeatFlowMap", "virtual_temperature", "concurrence",
-    "negativity", "correlation_matrices",
+    "negativity", "correlation_matrices", "site_dynamics",
     "current_statistics", "CurrentStatistics", "scaled_cgf", "jump_energy",
     "reaction_coordinate_model", "mean_force_state", "ultrastrong_limit_state",
     "rc_convergence",

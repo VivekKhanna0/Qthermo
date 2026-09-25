@@ -24,6 +24,8 @@ __all__ = [
     "plot_correlations",
     "plot_machine",
     "plot_mode_map",
+    "plot_site_dynamics",
+    "plot_bloch_paths",
 ]
 
 
@@ -492,3 +494,113 @@ def plot_mode_map(scan_result, ax=None, log_x: bool = False, log_y: bool = False
     ax.set_ylabel(scan_result.parameters[1])
     ax.set_title("Operation mode", fontsize=10)
     return ax
+
+
+def _stroke_axis(dyn, uniform):
+    """x coordinates and stroke boundaries, optionally one unit per stroke."""
+    t, edges = dyn["time"], dyn["stroke_edges"]
+    if not uniform:
+        return t, edges
+    k = np.clip(np.searchsorted(edges, t, side="right") - 1, 0, len(edges) - 2)
+    width = np.diff(edges)[k]
+    x = k + (t - edges[k]) / np.where(width > 0, width, 1.0)
+    return x, np.arange(len(edges), dtype=float)
+
+
+def _shade_strokes(ax, bounds, names):
+    for k in range(len(names)):
+        if k % 2 == 0:
+            ax.axvspan(bounds[k], bounds[k + 1], color="0.93", zorder=0)
+
+
+def plot_site_dynamics(dynamics, site_names=None, figsize=(10, 7.5),
+                       uniform_strokes: bool = True):
+    """Per-qubit energy, virtual temperature and pairwise correlations
+    through a cycle. Takes the dict from :func:`qthermo.network.site_dynamics`.
+
+    Strokes are shaded alternately and labelled along the top, so one can read
+    off, stroke by stroke, which site absorbs energy, which cools, and when
+    correlations and entanglement are built and destroyed. With
+    ``uniform_strokes`` (default) every stroke gets the same width on the
+    time axis, so short driving strokes are as visible as long isochores.
+    """
+    plt = _require_matplotlib()
+    dyn = dynamics
+    n = dyn["energy"].shape[0]
+    names = site_names or [f"q{i}" for i in range(n)]
+    fig, axes = plt.subplots(3, 1, figsize=figsize, sharex=True)
+    t, bounds = _stroke_axis(dyn, uniform_strokes)
+
+    ax = axes[0]
+    for i in range(n):
+        ax.plot(t, dyn["energy"][i], lw=1.8, label=names[i])
+    ax.set_ylabel(r"local energy $\langle h_i\rangle$")
+    ax.legend(fontsize=8, frameon=False, ncol=min(n, 4))
+
+    ax = axes[1]
+    for i in range(n):
+        T = np.where(np.isfinite(dyn["virtual_temperature"][i]) &
+                     (dyn["virtual_temperature"][i] > 0), dyn["virtual_temperature"][i], np.nan)
+        ax.plot(t, T, lw=1.8, label=names[i])
+    ax.set_ylabel("virtual temperature $T^*$")
+
+    ax = axes[2]
+    for (a, b), values in dyn["mutual_information"].items():
+        line, = ax.plot(t, values, lw=1.8, label=f"I({names[a]}:{names[b]})")
+        c = dyn["concurrence"][(a, b)]
+        if np.any(np.isfinite(c)) and np.nanmax(c) > 1e-6:
+            ax.plot(t, c, lw=1.4, ls="--", color=line.get_color(),
+                    label=f"concurrence {names[a]}-{names[b]}")
+    ax.set_ylabel("correlations")
+    ax.set_xlabel("stroke (each drawn with equal width)" if uniform_strokes else "time")
+    ax.legend(fontsize=8, frameon=False, ncol=2)
+
+    for ax in axes:
+        _shade_strokes(ax, bounds, dyn["stroke_names"])
+        ax.grid(alpha=0.2)
+    if uniform_strokes:
+        axes[-1].set_xticks(bounds)
+        axes[-1].set_xticklabels([f"{e:.3g}" for e in dyn["stroke_edges"]], fontsize=8)
+    for k, name in enumerate(dyn["stroke_names"]):
+        axes[0].annotate(name, ((bounds[k] + bounds[k + 1]) / 2, 1.02),
+                         xycoords=("data", "axes fraction"), ha="center",
+                         fontsize=8, color="0.3")
+    fig.tight_layout()
+    return fig
+
+
+def plot_bloch_paths(dynamics, site_names=None, plane=("x", "z"), figsize=None):
+    """Each qubit's reduced Bloch vector through the cycle, one disk per qubit.
+
+    The projection onto ``plane`` is drawn inside the unit circle, coloured by
+    stroke. A path that shrinks toward the centre is losing purity -- to the
+    bath, or into correlations with the other qubits.
+    """
+    plt = _require_matplotlib()
+    dyn = dynamics
+    index = {"x": 0, "y": 1, "z": 2}
+    a, b = index[plane[0]], index[plane[1]]
+    qubits = [i for i in range(dyn["bloch"].shape[0]) if np.all(np.isfinite(dyn["bloch"][i]))]
+    names = site_names or [f"q{i}" for i in range(dyn["bloch"].shape[0])]
+    figsize = figsize or (3.2 * len(qubits), 3.4)
+    fig, axes = plt.subplots(1, len(qubits), figsize=figsize, squeeze=False)
+    edges, t = dyn["stroke_edges"], dyn["time"]
+    colours = plt.rcParams["axes.prop_cycle"].by_key()["color"]
+    for ax, i in zip(axes[0], qubits):
+        ax.add_patch(plt.Circle((0, 0), 1.0, fill=False, color="0.6", lw=1))
+        for k, name in enumerate(dyn["stroke_names"]):
+            mask = (t >= edges[k]) & (t <= edges[k + 1])
+            ax.plot(dyn["bloch"][i, mask, a], dyn["bloch"][i, mask, b], lw=2,
+                    color=colours[k % len(colours)],
+                    label=name if i == qubits[0] else None)
+        ax.plot(*dyn["bloch"][i, 0, [a, b]], "ko", ms=4)
+        ax.set_xlim(-1.1, 1.1)
+        ax.set_ylim(-1.1, 1.1)
+        ax.set_aspect("equal")
+        ax.set_xlabel(f"<sigma_{plane[0]}>")
+        ax.set_ylabel(f"<sigma_{plane[1]}>")
+        ax.set_title(names[i], fontsize=10)
+        ax.grid(alpha=0.2)
+    fig.legend(fontsize=8, frameon=False, loc="lower center", ncol=len(dyn["stroke_names"]))
+    fig.tight_layout(rect=(0, 0.08, 1, 1))
+    return fig

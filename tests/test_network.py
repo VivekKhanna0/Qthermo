@@ -100,3 +100,44 @@ def test_plots_render():
               models.two_qubit_heat_valve()):
         fig = qt.plot_machine(m.analyze())
         plt.close(fig)
+
+
+def test_site_dynamics_follows_every_stroke_and_closes_energy():
+    D = [2, 2]
+    H0 = qt.embed(qt.qubit_hamiltonian(1.0), 0, D) + qt.embed(qt.qubit_hamiltonian(1.0), 1, D)
+    cycle = qt.otto_cycle(H0, 2.0 * H0, 0.5, 3.0,
+                          [qt.embed(qt.sigma_x, k, D) for k in range(2)],
+                          tau_iso=20.0, tau_ramp=1.0, steps=100)
+    result, _, _ = cycle.limit_cycle(np.eye(4) / 4)
+    ramp = lambda a, b: (lambda t: qt.qubit_hamiltonian(a + t * (b - a)))
+    local = {"hot_iso": [qt.qubit_hamiltonian(2.0)] * 2, "expand": [ramp(2.0, 1.0)] * 2,
+             "cold_iso": [qt.qubit_hamiltonian(1.0)] * 2, "compress": [ramp(1.0, 2.0)] * 2}
+    dyn = qt.site_dynamics(result, D, local)
+    assert dyn["stroke_names"] == ["hot_iso", "expand", "cold_iso", "compress"]
+    # non-interacting medium: local energies add up to the total energy
+    energies = dyn["energy"].sum(axis=0)
+    H_start = 2.0 * H0
+    assert np.isclose(energies[0], np.real(np.trace(H_start @ result.strokes[0].rho_initial)))
+    # uncoupled qubits starting uncorrelated stay uncorrelated
+    assert np.max(dyn["mutual_information"][(0, 1)]) < 1e-9
+    # the hot isochore ends at the hot bath's temperature
+    k_end_hot = len(result.strokes[0].times) - 1
+    assert np.allclose(dyn["virtual_temperature"][:, k_end_hot], 3.0, rtol=1e-3)
+
+
+def test_site_dynamics_plots_render():
+    matplotlib = pytest.importorskip("matplotlib")
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    D = [2, 2]
+    E = qt.embed
+    ising = lambda h: -E(qt.sigma_z, 0, D) @ E(qt.sigma_z, 1, D) - h * (
+        E(qt.sigma_x, 0, D) + E(qt.sigma_x, 1, D))
+    cycle = qt.otto_cycle(ising(0.8), ising(2.5), 0.3, 3.0,
+                          [E(qt.sigma_z, 0, D), E(qt.sigma_z, 1, D)], gamma=1.0,
+                          tau_iso=25.0, tau_ramp=0.3, steps=80)
+    result, _, _ = cycle.limit_cycle(np.eye(4) / 4)
+    dyn = qt.site_dynamics(result, D, [qt.sigma_x, qt.sigma_x])
+    assert np.nanmax(dyn["concurrence"][(0, 1)]) > 0.3      # cold Gibbs state is entangled
+    plt.close(qt.plot_site_dynamics(dyn))
+    plt.close(qt.plot_bloch_paths(dyn))

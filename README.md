@@ -101,6 +101,7 @@ QuTiP `Qobj`s are accepted anywhere an array is.
 | build baths for a coupled / many-body system | `qt.davies_bath` (global), `qt.local_bath` (local) |
 | know whether local vs global master equations matter | `model.compare()` |
 | see where heat flows inside a multi-qubit machine | `qt.heat_flow_map(steady)`, `qt.plot_machine(steady)` |
+| follow each qubit (energy, T*, entanglement) through a cycle | `qt.site_dynamics(result, dims, local_H)`, `qt.plot_site_dynamics` |
 | get the noise of a current and the TUR/KUR ratios | `qt.current_statistics(model, "bath")` |
 | simulate a stroke cycle and its limit cycle | `qt.Cycle([qt.Stroke(...), ...]).limit_cycle(rho0)` |
 | know the quasi-static limit of an interacting Otto engine | `qt.ideal_otto(H_c, H_h, T_c, T_h)` |
@@ -222,6 +223,16 @@ ramps (quantum friction) open up accelerator and heater regions.</td>
 <td><b>One cycle, not the average</b> (<code>full_demo.py</code>). Sampled
 quantum-jump trajectories against the exact counting-statistics distribution
 (diamonds). The master-equation mean is a value no single cycle produces.</td>
+</tr>
+<tr>
+<td colspan="2"><img src="examples/figures/multiqubit_cycle.png" alt="two-qubit engine cycle, site by site"></td>
+</tr>
+<tr>
+<td colspan="2"><b>Inside a two-qubit engine</b> (<code>multiqubit_cycle.py</code>).
+A transverse-field Ising pair run as an Otto engine, site by site and stroke by
+stroke. The cold bath drives the pair into an <i>entangled</i> Gibbs state
+(concurrence 0.45), the fast compression ramp partly unwinds it, and the hot
+bath destroys it. Fast ramps cost efficiency: 0.515 against 0.648 quasi-static.</td>
 </tr>
 <tr>
 <td colspan="2"><img src="examples/figures/optimal_protocol.png" alt="optimal driving protocol"></td>

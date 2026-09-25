@@ -38,6 +38,7 @@ __all__ = [
     "concurrence",
     "negativity",
     "correlation_matrices",
+    "site_dynamics",
 ]
 
 
@@ -287,3 +288,67 @@ def heat_flow_map(source, model=None, *, rho=None, dims=None, local_H=None,
                        bath_to_site, bath_to_interaction, term_to_site, bath_T,
                        bath_sites, corr["mutual_information"], corr["negativity"],
                        corr["concurrence"], total_corr, extras)
+
+
+def site_dynamics(cycle_result, dims, local_H) -> dict:
+    """Per-site quantities along every stored state of a cycle.
+
+    ``local_H`` is one (unembedded) Hamiltonian per site, or a dict
+    ``{stroke_name: [h_0, h_1, ...]}`` when the local terms differ between
+    strokes. Callable entries are driven terms ``h(t)`` with ``t`` measured
+    from the start of their stroke.
+
+    Returns a dict of arrays over the concatenated time axis of all strokes:
+    ``time``, ``stroke_edges`` (start time of each stroke, plus the end),
+    ``stroke_names``, ``energy`` (n_sites x n_times, ``<h_i>``),
+    ``virtual_temperature``, ``bloch`` (n_sites x n_times x 3, qubits only),
+    ``mutual_information`` and ``concurrence`` (dict over site pairs), and
+    ``total_correlation``.
+    """
+    n = len(dims)
+    times, states, edges, names = [], [], [0.0], []
+    offset = 0.0
+    for stroke in cycle_result.strokes:
+        t = np.asarray(stroke.times) + offset
+        times.extend(t if not times else t[1:])
+        states.extend(stroke.states if not states else stroke.states[1:])
+        offset = float(t[-1])
+        edges.append(offset)
+        names.append(stroke.name)
+    times = np.array(times)
+
+    def local_at(i, t_abs):
+        k = int(np.searchsorted(edges, t_abs, side="right") - 1)
+        k = min(max(k, 0), len(names) - 1)
+        per_stroke = local_H[names[k]] if isinstance(local_H, dict) else local_H
+        h = per_stroke[i]
+        # callables are driven local terms, evaluated at the stroke-local time
+        return _as_matrix(h(t_abs - edges[k]) if callable(h) else h)
+
+    pairs = [(a, b) for a in range(n) for b in range(a + 1, n)]
+    energy = np.zeros((n, len(times)))
+    T_v = np.zeros((n, len(times)))
+    bloch = np.full((n, len(times), 3), np.nan)
+    mi = {p: np.zeros(len(times)) for p in pairs}
+    conc = {p: np.full(len(times), np.nan) for p in pairs}
+    total_corr = np.zeros(len(times))
+    paulis = [np.array([[0, 1], [1, 0]], complex), np.array([[0, -1j], [1j, 0]]),
+              np.array([[1, 0], [0, -1]], complex)]
+    for k, (t, rho) in enumerate(zip(times, states)):
+        reduced = [partial_trace(rho, i, dims) for i in range(n)]
+        for i in range(n):
+            h = local_at(i, t)
+            energy[i, k] = float(np.real(np.trace(h @ reduced[i])))
+            T_v[i, k] = virtual_temperature(reduced[i], h)
+            if dims[i] == 2:
+                bloch[i, k] = [float(np.real(np.trace(s @ reduced[i]))) for s in paulis]
+        for a, b in pairs:
+            mi[(a, b)][k] = mutual_information(rho, a, b, dims)
+            if dims[a] == 2 and dims[b] == 2:
+                conc[(a, b)][k] = concurrence(partial_trace(rho, [a, b], dims))
+        total_corr[k] = float(sum(von_neumann_entropy(r) for r in reduced)
+                              - von_neumann_entropy(rho))
+    return {"time": times, "stroke_edges": np.array(edges), "stroke_names": names,
+            "energy": energy, "virtual_temperature": T_v, "bloch": bloch,
+            "mutual_information": mi, "concurrence": conc,
+            "total_correlation": total_corr}
