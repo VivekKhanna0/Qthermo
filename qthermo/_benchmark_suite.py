@@ -372,3 +372,31 @@ def _coherent_plus():
     from .batteries import ergotropy_split
     return ergotropy_split(np.full((2, 2), 0.5, dtype=complex),
                            qubit_hamiltonian(1.0))["coherent"], 0.5
+
+
+@benchmark("general friction metric vs erasure closed form, omega = 1",
+           "linear-response friction beta Var/Gamma; Sivak & Crooks, PRL 108, 190602 (2012)",
+           tolerance=1e-6, relative=True, group="information")
+def _friction_general():
+    from .baths import davies_bath, ohmic_spectrum
+    from .geometry import friction
+    from .information import erasure_friction
+    bath = lambda H: [davies_bath(H, sigma_x, 1.0, spectrum=ohmic_spectrum(1.0, reference=1.0))]
+    return friction(qubit_hamiltonian, bath, 1.0, 1.0), erasure_friction(1.0, 1.0, 1.0)
+
+
+@benchmark("optimal schedule, non-commuting qubit drive: simulated / predicted L^2",
+           "-> 1 in the slow limit; Scandi & Perarnau-Llobet, Quantum 3, 197 (2019)",
+           tolerance=0.02, relative=True, slow=True, group="information")
+def _geodesic_general():
+    from .baths import davies_bath, ohmic_spectrum
+    from .geometry import excess_work, optimal_schedule
+    T = 0.7
+    H_of = lambda th: qubit_hamiltonian(1.0 + th) + 0.8 * th * sigma_x
+    from .channels import sigma_z
+    baths_of = lambda H: [davies_bath(H, sigma_x + sigma_z, T,
+                                      spectrum=ohmic_spectrum(0.5, reference=1.0))]
+    sched = optimal_schedule(H_of, baths_of, T, (0.0, 2.0), points=61)
+    tau = 120.0
+    sim = excess_work(sched.hamiltonian(H_of, tau), baths_of, T, tau, steps=1200)["dissipation"]
+    return sim / sched.minimum_excess(tau), 1.0

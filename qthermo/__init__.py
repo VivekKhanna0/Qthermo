@@ -108,6 +108,7 @@ from .counting import CycleCounting, cycle_counting
 from .modes import MODES, classify, mode_map
 from . import batteries  # noqa: E402  (quantum batteries: qthermo.batteries.*)
 from .batteries import ergotropy_split, locked_ergotropy
+from .geometry import OptimalSchedule, excess_work, friction, optimal_schedule
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
 __version__ = "0.3.0"
@@ -154,5 +155,6 @@ __all__ = [
     "cycle_counting", "CycleCounting",
     "classify", "mode_map", "MODES",
     "batteries", "ergotropy_split", "locked_ergotropy",
+    "friction", "optimal_schedule", "OptimalSchedule", "excess_work",
     "__version__",
 ]

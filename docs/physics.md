@@ -208,6 +208,22 @@ Slow-driving friction:
 
 `geodesic_schedule` runs at constant `√ζ ω̇`, which attains `L²/τ`.
 
+## Optimal protocols — `friction`, `optimal_schedule`
+
+For `H(λ)` with a thermalising generator `𝓛_λ` (fixed point `π_λ`, the Gibbs
+state at `T`), slow driving leaves the state lagging by `δρ = 𝓛⁺(∂_λπ) λ̇`, and
+
+    W − ΔF ≈ ∫ g(λ) λ̇² dt,     g(λ) = Tr[∂_λH · 𝓛⁺(∂_λπ)]
+
+where `𝓛⁺` is the Drazin inverse, applied through the bordered solve. The
+derivatives are central differences with `h = 1e-5`. The metric includes
+coherent contributions when `[H, ∂_λH] ≠ 0`.
+
+Along a path `λ(s)`, the constant-speed schedule `√g |dλ/ds| ṡ = const`
+minimises the excess, with value `L²/τ`. `excess_work` simulates the stroke
+with the dissipator rebuilt at every time (adiabatic master equation) and
+reports `T σ`.
+
 ## Otto cycles with interacting media — `ideal_otto`, `otto_cycle`
 
 `ideal_otto` gives the quasi-static cycle:

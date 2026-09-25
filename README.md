@@ -109,6 +109,7 @@ QuTiP `Qobj`s are accepted anywhere an array is.
 | scan any machine over parameters | `qt.sweep`, `qt.scan_2d`, `qt.pareto_front` |
 | go beyond weak coupling | `qt.reaction_coordinate_model`, `qt.rc_convergence` |
 | cost of erasure and the optimal protocol | `qt.landauer_erasure`, `qt.geodesic_schedule` |
+| the least-dissipative schedule for *my* drive | `qt.optimal_schedule(H_of, baths_of, T, path)` |
 | analyse a quantum battery | `qt.batteries.ergotropy_split`, `locked_ergotropy`, `dicke_battery` |
 | confirm the package is right | `python -m qthermo.benchmarks` |
 
@@ -160,6 +161,7 @@ print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
 | **Fluctuations** | `current_statistics`, `scaled_cgf` | Exact vs tilted-generator vs independent classical FCS (1e-10); Gallavotti–Cohen symmetry to 1e-15; TUR holds for all classical machines, violated by the maser as published |
 | **Strong coupling** | `reaction_coordinate_model`, `mean_force_state` | O(λ²) weak-coupling limit; Cresser–Anders ultrastrong limit; heat-current turnover |
 | **Information** | `landauer_erasure`, `geodesic_schedule`, `thermodynamic_length` | → T ln 2; excess ∝ 1/τ matching slow-driving theory to <1%; geodesic attains L²/τ |
+| **Optimal protocols** (any H(λ), any thermalising bath) | `friction`, `optimal_schedule`, `excess_work` | Friction metric reproduces the erasure closed form to 1e-11; non-commuting drive: simulated excess within 0.2% of L²/τ, 34% below a linear ramp |
 | **Quantum batteries** | `batteries.ergotropy_split`, `locked_ergotropy`, `asymptotic_ergotropy`, `dicke_battery`, `collective_advantage` | Dicke √N power advantage (exponent 0.499); locked ergotropy of a Bell pair; activation of passive states |
 | **Per-cycle statistics** | `cycle_counting` (exact), `unravel` (sampled) | Exact P(n) vs independent classical telegraph model (1e-12); vs trajectories; Jarzynski to 1e-16 |
 | **Operation modes** | `classify`, `mode_map`, `plot_mode_map`, `.mode()` on every result | Quasi-static qubit Otto boundary ω_c/ω_h = T_c/T_h reproduced exactly |
@@ -220,6 +222,16 @@ ramps (quantum friction) open up accelerator and heater regions.</td>
 <td><b>One cycle, not the average</b> (<code>full_demo.py</code>). Sampled
 quantum-jump trajectories against the exact counting-statistics distribution
 (diamonds). The master-equation mean is a value no single cycle produces.</td>
+</tr>
+<tr>
+<td colspan="2"><img src="examples/figures/optimal_protocol.png" alt="optimal driving protocol"></td>
+</tr>
+<tr>
+<td colspan="2"><b>Optimal protocols for any drive</b> (<code>optimal_protocol.py</code>).
+The slow-driving friction metric for a qubit whose field grows and tilts (a
+non-commuting drive). The constant-speed schedule dissipates 34% less than a
+linear ramp, and full finite-time simulations (dots) land on the predictions
+(dashed).</td>
 </tr>
 <tr>
 <td colspan="2"><img src="examples/figures/quantum_battery.png" alt="Dicke quantum battery"></td>
