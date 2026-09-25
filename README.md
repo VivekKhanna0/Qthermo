@@ -36,6 +36,10 @@ research question (a two-qubit thermal diode) from a Hamiltonian to publishable
 numbers, including the checks a referee would ask about. It renders on GitHub
 with all outputs.
 
+**Docs:** [physics definitions](docs/physics.md) · [API reference](docs/api.md) ·
+[figure gallery](docs/gallery.md) · [examples](examples/README.md) ·
+[changelog](CHANGELOG.md)
+
 ## Thirty seconds
 
 ```python
