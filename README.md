@@ -196,6 +196,17 @@ ramps (quantum friction) open up accelerator and heater regions.</td>
 quantum-jump trajectories against the exact counting-statistics distribution
 (diamonds). The master-equation mean is a value no single cycle produces.</td>
 </tr>
+<tr>
+<td colspan="2"><img src="examples/figures/quantum_battery.png" alt="Dicke quantum battery"></td>
+</tr>
+<tr>
+<td colspan="2"><b>Quantum batteries</b> (<code>quantum_battery.py</code>). N cells charged
+through one cavity charge faster per cell than N separate ones, with a power
+advantage growing as √N (Ferraro et al. 2018; fitted exponent 0.499). The same
+script splits stored work into population and coherence parts, shows the
+coherent part lost to dephasing, and shows work locked in correlations or
+unlocked by many-copy operations.</td>
+</tr>
 </table>
 
 ## Verification

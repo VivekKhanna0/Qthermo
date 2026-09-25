@@ -88,6 +88,12 @@ ax.loglog(advantage["N"], advantage["advantage"], "o-", lw=2, color="#1B4F72",
 Ns = np.array(N_values, dtype=float)
 ax.loglog(Ns, np.sqrt(Ns) * advantage["advantage"][-1] / np.sqrt(Ns[-1]), "k--",
           lw=1.2, label=r"$\propto\sqrt{N}$")
+from matplotlib.ticker import FixedLocator, NullLocator, ScalarFormatter
+ax.xaxis.set_major_locator(FixedLocator([1, 2, 4, 8, 12]))
+ax.yaxis.set_major_locator(FixedLocator([1, 1.5, 2, 2.5, 3]))
+for axis in (ax.xaxis, ax.yaxis):
+    axis.set_major_formatter(ScalarFormatter())
+    axis.set_minor_locator(NullLocator())
 ax.set_xlabel("number of cells N")
 ax.set_ylabel("power advantage")
 ax.set_title("Collective advantage", fontsize=10)
