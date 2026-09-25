@@ -1,0 +1,286 @@
+"""Thermal baths as objects: global (Davies) and local constructions.
+
+``channels.thermal_bath`` builds the two jump operators of a single qubit. For a
+multi-qubit working medium that is not enough, and the choice it hides is the
+most-argued-about modelling decision in quantum thermodynamics:
+
+* **Local** master equation -- each bath acts through the jump operators of the
+  site it touches, as if the other sites were not there. Cheap and intuitive,
+  valid when inter-site coupling is weak compared with the bath rates, and
+  known to produce thermodynamic inconsistencies otherwise: its fixed point is
+  not the Gibbs state of the coupled Hamiltonian, and heat can appear to flow
+  from cold to hot (Levy & Kosloff, EPL 107, 20004 (2014)).
+
+* **Global** (Davies) master equation -- jump operators connect eigenstates of
+  the *full* Hamiltonian. Thermodynamically consistent by construction (the
+  Gibbs state is a fixed point, Spohn's inequality holds), valid when the
+  secular approximation is, i.e. when Bohr frequencies are resolved on the
+  scale of the bath rates.
+
+Both are provided behind the same :class:`Bath` object, so the same machine can
+be run under either and the difference measured rather than argued about --
+see :func:`qthermo.steady.compare_master_equations`.
+
+Convention: a bath's heat current is positive when energy flows *into* the
+system from that bath, matching ``Q > 0`` elsewhere in the package.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from .channels import mean_occupation
+from .core import _as_matrix
+from .validation import QThermoError, check_hermitian, check_temperature
+
+__all__ = [
+    "Bath",
+    "davies_bath",
+    "local_bath",
+    "bohr_decomposition",
+    "flat_spectrum",
+    "ohmic_spectrum",
+    "dissipator",
+]
+
+
+@dataclass
+class Bath:
+    """A named set of collapse operators coupling the system to one reservoir.
+
+    Parameters
+    ----------
+    name : str
+        Label used in reports and as the key of heat-current dictionaries.
+    c_ops : list of ndarray
+        Jump operators acting on the full system Hilbert space.
+    temperature : float or None
+        Reservoir temperature. ``None`` for a non-thermal channel (for example
+        pure dephasing noise), which then contributes to the dynamics but not
+        to the entropy-production balance.
+    kind : str
+        ``"global"``, ``"local"`` or ``"custom"``. Informational: reports use it
+        to flag results that depend on the local approximation.
+    sites : tuple of int
+        Sites the bath physically touches, used by per-site plots.
+    """
+
+    name: str
+    c_ops: list
+    temperature: float | None = None
+    kind: str = "custom"
+    sites: tuple = field(default_factory=tuple)
+
+    def __post_init__(self):
+        self.temperature = check_temperature(
+            self.temperature, f"bath {self.name!r} temperature")
+        self.c_ops = [_as_matrix(L) for L in self.c_ops]
+        if not self.c_ops:
+            raise QThermoError(
+                f"bath {self.name!r} has no jump operators. If the coupling "
+                "operator commutes with the Hamiltonian, no transition is "
+                "possible and the bath exchanges no energy with the system."
+            )
+        self.sites = tuple(int(s) for s in self.sites)
+
+    @property
+    def dim(self) -> int:
+        return self.c_ops[0].shape[0]
+
+    def dissipator(self, rho) -> np.ndarray:
+        """This bath's contribution ``D[rho]`` to the master equation."""
+        return dissipator(self.c_ops, rho)
+
+    def heat_current(self, rho, H) -> float:
+        """Energy flow into the system from this bath, ``Tr[H D(rho)]``."""
+        return float(np.real(np.trace(_as_matrix(H) @ self.dissipator(rho))))
+
+    def __repr__(self) -> str:
+        T = "--" if self.temperature is None else f"{self.temperature:g}"
+        return (f"Bath({self.name!r}, kind={self.kind}, T={T}, "
+                f"{len(self.c_ops)} jump operators)")
+
+
+def dissipator(c_ops, rho) -> np.ndarray:
+    """Lindblad dissipator ``sum_L  L rho L^dag - {L^dag L, rho}/2``."""
+    rho = _as_matrix(rho)
+    out = np.zeros_like(rho)
+    for L in c_ops:
+        L = _as_matrix(L)
+        LdL = L.conj().T @ L
+        out += L @ rho @ L.conj().T - 0.5 * (LdL @ rho + rho @ LdL)
+    return out
+
+
+# --- spectral densities ------------------------------------------------------
+
+def flat_spectrum(gamma: float):
+    """Frequency-independent emission rate: ``J(w) = gamma``.
+
+    Matches :func:`qthermo.channels.thermal_bath`, so a Davies bath on a single
+    qubit with this spectrum reproduces it exactly.
+    """
+    def J(omega):
+        return gamma * np.ones_like(np.asarray(omega, dtype=float))
+    J.zero_frequency = None   # diverges: n(w) ~ T/w with J finite
+    return J
+
+
+def ohmic_spectrum(gamma: float, cutoff: float = np.inf, reference: float = 1.0):
+    """Ohmic emission rate ``J(w) = gamma (w / reference) exp(-w / cutoff)``.
+
+    ``reference`` sets the frequency at which the rate equals ``gamma``, so the
+    same ``gamma`` means roughly the same coupling strength as ``flat_spectrum``
+    for transitions near that frequency.
+    """
+    def J(omega):
+        omega = np.asarray(omega, dtype=float)
+        damp = 1.0 if np.isinf(cutoff) else np.exp(-omega / cutoff)
+        return gamma * (omega / reference) * damp
+    # lim_{w->0} J(w) n(w) = gamma T / reference: finite pure-dephasing rate.
+    J.zero_frequency = lambda T: gamma * T / reference
+    return J
+
+
+# --- Davies construction -----------------------------------------------------
+
+def _cluster(values: np.ndarray, tol: float) -> list[np.ndarray]:
+    """Group sorted indices whose values agree within ``tol``."""
+    order = np.argsort(values)
+    groups, current = [], [order[0]]
+    for index in order[1:]:
+        if abs(values[index] - values[current[-1]]) <= tol:
+            current.append(index)
+        else:
+            groups.append(np.array(current))
+            current = [index]
+    groups.append(np.array(current))
+    return groups
+
+
+def bohr_decomposition(H, A, tol: float | None = None) -> dict:
+    """Split ``A`` into components ``A(w)`` that lower the energy by ``w``.
+
+        A = sum_w A(w),     A(w) = sum_{e' - e = w}  P(e) A P(e')
+
+    with ``P(e)`` the projector onto the eigenspace of ``H`` with energy ``e``.
+    Returns ``{w: A(w)}`` over every Bohr frequency at which ``A`` has a
+    non-zero matrix element; ``w > 0`` lowers the energy, ``w < 0`` raises it.
+
+    Degenerate levels and degenerate Bohr frequencies are grouped within
+    ``tol`` (default: ``1e-9`` times the spectral width). Grouping is what makes
+    the resulting generator the true Davies (secular) generator; frequencies
+    closer than the bath rates but further apart than ``tol`` are the regime
+    where the secular approximation itself becomes questionable.
+    """
+    H = check_hermitian(_as_matrix(H))
+    A = _as_matrix(A)
+    if A.shape != H.shape:
+        raise QThermoError(
+            f"coupling operator has shape {A.shape} but the Hamiltonian has "
+            f"shape {H.shape}")
+    energies, vectors = np.linalg.eigh(H)
+    width = float(energies[-1] - energies[0])
+    if tol is None:
+        tol = 1e-9 * max(width, 1.0)
+
+    level_groups = _cluster(energies, tol)
+    level_energy = [float(np.mean(energies[g])) for g in level_groups]
+    projectors = [vectors[:, g] @ vectors[:, g].conj().T for g in level_groups]
+
+    components: dict[float, np.ndarray] = {}
+    keys: list[float] = []
+    for a, P_a in enumerate(projectors):          # final level (energy e)
+        for b, P_b in enumerate(projectors):      # initial level (energy e')
+            block = P_a @ A @ P_b
+            if np.max(np.abs(block)) < 1e-14:
+                continue
+            omega = level_energy[b] - level_energy[a]
+            match = next((k for k in keys if abs(k - omega) <= tol), None)
+            if match is None:
+                keys.append(omega)
+                components[omega] = block
+            else:
+                components[match] = components[match] + block
+    return components
+
+
+def davies_bath(H, coupling, temperature: float, gamma: float = 1.0,
+                spectrum=None, name: str = "bath", sites=(),
+                zero_frequency_rate: float | None = None,
+                tol: float | None = None) -> Bath:
+    """Global (Davies) thermal bath for an arbitrary Hamiltonian.
+
+    The system couples to the reservoir through the Hermitian operator
+    ``coupling`` (for a qubit chain with a bath on site 0, that is
+    ``embed(sigma_x, 0, dims)``). The coupling is decomposed into Bohr
+    components of the *full* ``H`` and each component becomes one jump
+    operator with the rate fixed by detailed balance:
+
+        gamma(w)  = J(w) (1 + n(w))        w > 0   (emission)
+        gamma(-w) = J(w) n(w)                      (absorption)
+
+    ``gamma(-w) / gamma(w) = exp(-w / T)`` exactly, so the Gibbs state of ``H``
+    at ``temperature`` is a fixed point for any ``H`` -- coupled, degenerate,
+    many-body. The Lamb shift is neglected.
+
+    Parameters
+    ----------
+    H : array or Qobj
+        Full system Hamiltonian, including interactions.
+    coupling : array or Qobj
+        Hermitian system operator through which the bath acts.
+    temperature : float
+        Bath temperature.
+    gamma : float
+        Rate scale; used to build a flat spectrum when ``spectrum`` is None.
+    spectrum : callable, optional
+        ``J(w)`` for ``w > 0``: the zero-temperature emission rate at Bohr
+        frequency ``w``. See :func:`flat_spectrum`, :func:`ohmic_spectrum`.
+    zero_frequency_rate : float, optional
+        Rate of the ``w = 0`` (energy-conserving, pure dephasing in the
+        eigenbasis) component. It exchanges no heat, only damps coherences
+        between degenerate-energy states. Defaults to the spectrum's own
+        ``w -> 0`` limit when finite, else 0.
+    """
+    temperature = check_temperature(temperature, f"bath {name!r} temperature")
+    if temperature is None:
+        raise QThermoError(f"bath {name!r} needs a temperature")
+    coupling = check_hermitian(_as_matrix(coupling), f"bath {name!r} coupling")
+    J = spectrum if spectrum is not None else flat_spectrum(gamma)
+
+    c_ops = []
+    for omega, A_omega in sorted(bohr_decomposition(H, coupling, tol).items()):
+        if abs(omega) <= (tol or 1e-12):
+            rate = zero_frequency_rate
+            if rate is None:
+                limit = getattr(J, "zero_frequency", None)
+                rate = limit(temperature) if callable(limit) else 0.0
+        elif omega > 0:
+            rate = float(J(omega)) * (1.0 + mean_occupation(omega, temperature))
+        else:
+            rate = float(J(-omega)) * mean_occupation(-omega, temperature)
+        if rate > 0:
+            c_ops.append(np.sqrt(rate) * A_omega)
+
+    return Bath(name, c_ops, temperature, kind="global", sites=tuple(sites))
+
+
+def local_bath(H_site, coupling, temperature: float, site: int, dims,
+               gamma: float = 1.0, spectrum=None, name: str | None = None,
+               zero_frequency_rate: float | None = None) -> Bath:
+    """Local thermal bath: Davies construction on one site, then embedded.
+
+    The jump operators are those the site would have in isolation, lifted to
+    the full space. This ignores how inter-site coupling reshapes the
+    spectrum -- the defining approximation of the local master equation.
+    """
+    from .subsystems import embed
+
+    single = davies_bath(H_site, coupling, temperature, gamma=gamma,
+                         spectrum=spectrum, name=name or f"bath_{site}",
+                         zero_frequency_rate=zero_frequency_rate)
+    return Bath(single.name, [embed(L, site, dims) for L in single.c_ops],
+                temperature, kind="local", sites=(site,))

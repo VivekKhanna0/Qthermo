@@ -91,3 +91,76 @@ def _jarzynski():
 def _ergotropy_inverted():
     H = qubit_hamiltonian(1.7)
     return ergotropy(np.diag([0.0, 1.0]).astype(complex), H), 1.7
+
+
+# --- continuous machines and bath models -----------------------------------
+
+@benchmark("Davies bath: steady state of random 8-level H vs Gibbs",
+           "KMS detailed balance => Gibbs fixed point; Spohn, Rep. Math. Phys. 10, 189 (1976)",
+           tolerance=1e-10, group="continuous machines")
+def _davies_gibbs():
+    from .baths import davies_bath
+    from .steady import steady_state
+    rng = np.random.default_rng(8)
+    m = rng.normal(size=(8, 8)) + 1j * rng.normal(size=(8, 8))
+    a = rng.normal(size=(8, 8)) + 1j * rng.normal(size=(8, 8))
+    H, A = (m + m.conj().T) / 2, (a + a.conj().T) / 2
+    rho = steady_state(H, [davies_bath(H, A, 0.9)])
+    return np.max(np.abs(rho - thermal_state(H, 0.9))), 0.0
+
+
+@benchmark("3-qubit absorption fridge COP (local ME, tight coupling)",
+           "w_c/w_h; Linden, Popescu & Skrzypczyk, PRL 105, 130401 (2010)",
+           tolerance=1e-10, group="continuous machines")
+def _lps_cop():
+    from .models import absorption_refrigerator
+    r = absorption_refrigerator(omega_c=1.0, omega_h=3.0).analyze()
+    return r.cop("cold", "hot"), 1.0 / 3.0
+
+
+@benchmark("3-qubit absorption fridge COP (global ME) below Carnot",
+           "(1-T_r/T_h)/(T_r/T_c-1); Correa et al., Sci. Rep. 4, 3949 (2014)",
+           kind="upper", tolerance=0.0, group="continuous machines")
+def _lps_carnot():
+    from .models import absorption_refrigerator
+    r = absorption_refrigerator(master_equation="global").analyze()
+    return r.cop("cold", "hot"), r.absorption_carnot_cop("cold", "hot", "room")
+
+
+@benchmark("three-level maser efficiency",
+           "1 - w_c/w_h; Scovil & Schulz-DuBois, PRL 2, 262 (1959)",
+           tolerance=1e-10, group="continuous machines")
+def _ssdb():
+    from .models import three_level_maser
+    r = three_level_maser(omega_c=1.0, omega_h=3.0).analyze()
+    return r.efficiency("hot"), 2.0 / 3.0
+
+
+@benchmark("local ME, detuned XX qubits: heat current from hot bath",
+           "< 0, i.e. cold -> hot; Levy & Kosloff, EPL 107, 20004 (2014)",
+           kind="upper", tolerance=0.0, group="continuous machines")
+def _levy_kosloff():
+    import warnings
+    from .models import two_qubit_heat_valve
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        r = two_qubit_heat_valve(master_equation="local").analyze(energy=None)
+    return r.current("hot"), 0.0
+
+
+@benchmark("same machine, global ME: entropy production rate",
+           ">= 0; Spohn's inequality for Davies generators",
+           kind="lower", tolerance=0.0, group="continuous machines")
+def _levy_kosloff_global():
+    from .models import two_qubit_heat_valve
+    r = two_qubit_heat_valve(master_equation="global").analyze()
+    return r.entropy_production_rate, 0.0
+
+
+@benchmark("same machine, local ME with bare-H heat: entropy production",
+           ">= 0 once boundary work is counted; De Chiara et al., NJP 20, 113024 (2018)",
+           kind="lower", tolerance=0.0, group="continuous machines")
+def _boundary_work():
+    from .models import two_qubit_heat_valve
+    r = two_qubit_heat_valve(master_equation="local").analyze()
+    return r.entropy_production_rate, 0.0

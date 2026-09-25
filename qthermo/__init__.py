@@ -39,6 +39,24 @@ from .analysis import (
     scan_2d,
     sweep,
 )
+from .baths import (
+    Bath,
+    bohr_decomposition,
+    davies_bath,
+    dissipator,
+    flat_spectrum,
+    local_bath,
+    ohmic_spectrum,
+)
+from .steady import (
+    MasterEquationComparison,
+    SteadyState,
+    analyze,
+    compare_master_equations,
+    liouvillian,
+    steady_state,
+    trace_distance,
+)
 from .cycle import Cycle, CycleResult, Stroke, StrokeResult
 from .solver import evolve, lindbladian
 from .validation import QThermoError
@@ -54,7 +72,9 @@ from .subsystems import (
     total_correlation,
 )
 
-__version__ = "0.2.0"
+from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
+
+__version__ = "0.3.0"
 
 
 def __getattr__(name):
@@ -79,5 +99,10 @@ __all__ = [
     "sweep", "scan_2d", "compare_channels", "SweepResult", "ScanResult",
     "partial_trace", "embed", "total_correlation", "mutual_information",
     "resolve_stroke", "resolve_cycle", "SiteResult", "SubsystemResult",
+    "Bath", "davies_bath", "local_bath", "bohr_decomposition", "dissipator",
+    "flat_spectrum", "ohmic_spectrum",
+    "analyze", "steady_state", "liouvillian", "SteadyState",
+    "compare_master_equations", "MasterEquationComparison", "trace_distance",
+    "models",
     "__version__",
 ]
