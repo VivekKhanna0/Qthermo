@@ -342,3 +342,33 @@ def _counting_decay():
     dist = cycle_counting(cycle, {"decay": "quanta"},
                           rho_start=np.diag([0.0, 1.0]).astype(complex)).distribution(4)
     return dist[-1], 1 - np.exp(-0.7 * 1.3)
+
+
+# --- quantum batteries ----------------------------------------------------------
+
+@benchmark("Dicke battery: large-N exponent of collective power advantage",
+           "= 1/2 (sqrt N); Ferraro et al., PRL 120, 117702 (2018)",
+           tolerance=0.05, slow=True, group="batteries")
+def _dicke_sqrt_n():
+    from .batteries import collective_advantage
+    return collective_advantage([1, 2, 4, 6, 8, 10])["large_N_exponent"], 0.5
+
+
+@benchmark("Bell pair of cells: ergotropy locked away from local unitaries",
+           "= w (all of it); Alicki & Fannes, PRE 87, 042123 (2013)",
+           tolerance=1e-12, group="batteries")
+def _locked_bell():
+    from .batteries import locked_ergotropy
+    bell = np.zeros((4, 4), dtype=complex)
+    bell[0, 0] = bell[0, 3] = bell[3, 0] = bell[3, 3] = 0.5
+    H = qubit_hamiltonian(1.0)
+    return locked_ergotropy(bell, [2, 2], [H, H])["locked"], 1.0
+
+
+@benchmark("coherent ergotropy of |+> (qubit gap w = 1)",
+           "= w/2, all in coherence; Francica et al., PRL 125, 180603 (2020)",
+           tolerance=1e-12, group="batteries")
+def _coherent_plus():
+    from .batteries import ergotropy_split
+    return ergotropy_split(np.full((2, 2), 0.5, dtype=complex),
+                           qubit_hamiltonian(1.0))["coherent"], 0.5

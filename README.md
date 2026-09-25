@@ -135,6 +135,7 @@ print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
 | **Fluctuations** | `current_statistics`, `scaled_cgf` | Exact vs tilted-generator vs independent classical FCS (1e-10); Gallavotti–Cohen symmetry to 1e-15; TUR holds for all classical machines, violated by the maser as published |
 | **Strong coupling** | `reaction_coordinate_model`, `mean_force_state` | O(λ²) weak-coupling limit; Cresser–Anders ultrastrong limit; heat-current turnover |
 | **Information** | `landauer_erasure`, `geodesic_schedule`, `thermodynamic_length` | → T ln 2; excess ∝ 1/τ matching slow-driving theory to <1%; geodesic attains L²/τ |
+| **Quantum batteries** | `batteries.ergotropy_split`, `locked_ergotropy`, `asymptotic_ergotropy`, `dicke_battery`, `collective_advantage` | Dicke √N power advantage (exponent 0.499); locked ergotropy of a Bell pair; activation of passive states |
 | **Per-cycle statistics** | `cycle_counting` (exact), `unravel` (sampled) | Exact P(n) vs independent classical telegraph model (1e-12); vs trajectories; Jarzynski to 1e-16 |
 | **Operation modes** | `classify`, `mode_map`, `plot_mode_map`, `.mode()` on every result | Quasi-static qubit Otto boundary ω_c/ω_h = T_c/T_h reproduced exactly |
 | **Optimisation** | `sweep`, `scan_2d`, `pareto_front` (cycles *and* continuous models) | Interior optimum located; sequential vs joint tuning |
