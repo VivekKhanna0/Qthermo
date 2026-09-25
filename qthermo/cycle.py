@@ -12,6 +12,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
+from scipy.integrate import trapezoid
 
 from .core import (
     _as_matrix,
@@ -19,6 +20,7 @@ from .core import (
     internal_energy,
     von_neumann_entropy,
 )
+from .baths import Bath
 from .solver import evolve
 from .validation import QThermoError, check_duration, check_temperature
 
@@ -35,13 +37,19 @@ class Stroke:
         Label used in reports.
     H : array, Qobj, or callable
         Hamiltonian, constant or ``H(t)``.
-    c_ops : list
-        Collapse operators. Empty means an isolated (unitary) stroke.
+    c_ops : list or callable
+        Collapse operators, or :class:`~qthermo.baths.Bath` objects, or a
+        callable ``t -> list`` of either for dissipation that follows a driven
+        Hamiltonian (see :func:`qthermo.baths.instantaneous_bath`). Empty means
+        an isolated (unitary) stroke. With ``Bath`` objects the heat exchanged
+        with each bath is reported separately in ``StrokeResult.heat_by_bath``
+        and entropy production uses each bath's own temperature.
     duration : float
         Stroke duration.
     temperature : float, optional
-        Bath temperature. Required to report entropy production; a stroke with
-        no bath does not need one.
+        Bath temperature for bare collapse operators. Required to report
+        entropy production; a stroke with no bath does not need one. Leave it
+        unset when passing ``Bath`` objects, which carry their temperatures.
     """
 
     name: str
@@ -56,10 +64,22 @@ class Stroke:
         self.temperature = check_temperature(
             self.temperature, f"stroke {self.name!r} temperature"
         )
-        if self.temperature is None and self.c_ops:
-            # Legal, but the stroke will not report entropy production.
-            pass
-        if self.temperature is not None and not self.c_ops:
+        if self.c_ops is None:
+            self.c_ops = []
+        sample = self.c_ops(0.0) if callable(self.c_ops) else self.c_ops
+        self._has_baths = bool(sample) and all(
+            isinstance(item, Bath) for item in sample)
+        if sample and not self._has_baths and any(
+                isinstance(item, Bath) for item in sample):
+            raise QThermoError(
+                f"stroke {self.name!r} mixes Bath objects and bare collapse "
+                "operators; wrap the bare operators in a Bath so every "
+                "channel's heat can be attributed")
+        if self._has_baths and self.temperature is not None:
+            raise QThermoError(
+                f"stroke {self.name!r} has Bath objects and a temperature; "
+                "baths carry their own temperatures, so drop temperature=")
+        if self.temperature is not None and not sample:
             raise QThermoError(
                 f"stroke {self.name!r} has a temperature but no collapse "
                 "operators. A stroke with no bath exchanges no heat, so its "
@@ -70,6 +90,16 @@ class Stroke:
                 f"stroke {self.name!r} has steps={self.steps}; at least 10 are "
                 "needed for the heat/work accumulation to be meaningful."
             )
+
+    @property
+    def dissipative(self) -> bool:
+        return bool(self.c_ops(0.0) if callable(self.c_ops) else self.c_ops)
+
+    def baths_at(self, t: float) -> list:
+        """The ``Bath`` objects active at time ``t`` (empty for bare c_ops)."""
+        if not self._has_baths:
+            return []
+        return list(self.c_ops(t) if callable(self.c_ops) else self.c_ops)
 
 
 @dataclass
@@ -83,6 +113,7 @@ class StrokeResult:
     rho_final: np.ndarray
     times: np.ndarray
     states: list
+    heat_by_bath: dict = field(default_factory=dict)
 
     @property
     def first_law_residual(self) -> float:
@@ -171,6 +202,33 @@ class CycleResult:
         return "\n".join(lines)
 
 
+def _heat_by_bath(stroke, out, total_heat) -> dict:
+    """Heat from each bath, ``int Tr[H(t) D_k(t)[rho(t)]] dt``.
+
+    With one bath this is the stroke's exact heat. With several, each bath's
+    share is integrated with the trapezoid rule on the stored grid and the
+    shares are rescaled so they sum to the exact total -- the rescaling is
+    O(dt^2) and keeps the first law exact per stroke.
+    """
+    times, states = out["times"], out["states"]
+    names = [b.name for b in stroke.baths_at(0.0)]
+    if len(names) == 1:
+        return {names[0]: float(total_heat)}
+    H = stroke.H
+    currents = {name: np.empty(len(times)) for name in names}
+    for index, (t, state) in enumerate(zip(times, states)):
+        H_t = _as_matrix(H(t) if callable(H) else H)
+        for bath in stroke.baths_at(float(t)):
+            currents[bath.name][index] = bath.heat_current(state, H_t)
+    raw = {n: float(trapezoid(c, times)) for n, c in currents.items()}
+    raw_total = sum(raw.values())
+    if abs(raw_total) > 1e-14 and abs(total_heat - raw_total) < 1e-2 * abs(raw_total):
+        # distribute the O(dt^2) quadrature error proportionally
+        return {n: q + (total_heat - raw_total) * abs(q) / sum(abs(v) for v in raw.values())
+                for n, q in raw.items()}
+    return raw
+
+
 class Cycle:
     """A sequence of strokes applied repeatedly to one working medium."""
 
@@ -209,10 +267,19 @@ class Cycle:
                            - internal_energy(rho, H_initial))
 
                 sigma = None
+                heat_by_bath = {}
                 if stroke.temperature is not None:
                     sigma = entropy_production(
                         rho, rho_final, out["heat"], stroke.temperature
                     )
+                elif stroke._has_baths:
+                    heat_by_bath = _heat_by_bath(stroke, out, out["heat"])
+                    temps = {b.name: b.temperature for b in stroke.baths_at(0.0)}
+                    if all(T is not None for T in temps.values()):
+                        sigma = float(
+                            von_neumann_entropy(rho_final)
+                            - von_neumann_entropy(rho)
+                            - sum(q / temps[k] for k, q in heat_by_bath.items()))
 
                 results.append(StrokeResult(
                     name=stroke.name,
@@ -224,6 +291,7 @@ class Cycle:
                     rho_final=rho_final,
                     times=out["times"],
                     states=out["states"],
+                    heat_by_bath=heat_by_bath,
                 ))
                 rho = rho_final
 

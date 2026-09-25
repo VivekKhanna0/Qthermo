@@ -77,7 +77,7 @@ def plot_cycle(result, cycle=None, ax=None, annotate: bool = True):
         gaps, populations = _gap_and_population(
             stroke_result.states, H_of_t, stroke_result.times
         )
-        dissipative = bool(stroke.c_ops) if stroke is not None else False
+        dissipative = stroke.dissipative if stroke is not None else False
         ax.plot(
             populations, gaps,
             linewidth=2.4,

@@ -16,6 +16,7 @@ import numpy as np
 from scipy.linalg import expm
 
 from .core import _as_matrix, free_energy
+from .solver import flatten_operators
 
 __all__ = ["TrajectoryEnsemble", "unravel", "jarzynski_tpm"]
 
@@ -98,7 +99,11 @@ def _mcwf_stroke(psi, H, c_ops, duration, steps, rng):
             psi = expm(-1j * H_mid * dt) @ psi
         return psi, 0.0, np.zeros(0), []
 
-    c_ops = [_as_matrix(L) for L in c_ops]
+    if callable(c_ops):
+        raise NotImplementedError(
+            "trajectory unravelling of time-dependent baths is not supported "
+            "yet; use Cycle.run for the averaged dynamics")
+    c_ops = flatten_operators(c_ops)
     damping = sum(L.conj().T @ L for L in c_ops)
 
     dt = duration / steps

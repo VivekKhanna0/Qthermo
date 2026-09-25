@@ -19,7 +19,19 @@ from .validation import (
     check_duration,
 )
 
-__all__ = ["lindbladian", "evolve"]
+__all__ = ["lindbladian", "evolve", "flatten_operators"]
+
+
+def flatten_operators(items) -> list[np.ndarray]:
+    """Expand a mix of operators and Bath objects into a flat operator list."""
+    out = []
+    for item in items:
+        ops = getattr(item, "c_ops", None)
+        if ops is not None:
+            out.extend(_as_matrix(L) for L in ops)
+        else:
+            out.append(_as_matrix(item))
+    return out
 
 
 def lindbladian(rho: np.ndarray, H: np.ndarray, c_ops: list[np.ndarray]) -> np.ndarray:
@@ -51,8 +63,10 @@ def evolve(rho0, H, c_ops=None, duration: float = 1.0, steps: int = 200,
     H : array, Qobj, or callable
         Hamiltonian. If callable it is evaluated as ``H(t)``, which is what
         makes driven (work-performing) strokes possible.
-    c_ops : list, optional
-        Collapse operators. Empty or None gives unitary evolution.
+    c_ops : list or callable, optional
+        Collapse operators (or ``Bath`` objects). Empty or None gives unitary
+        evolution. A callable ``c_ops(t)`` returning such a list gives
+        time-dependent dissipation.
     duration : float
         Stroke duration.
     steps : int
@@ -65,7 +79,14 @@ def evolve(rho0, H, c_ops=None, duration: float = 1.0, steps: int = 200,
     duration = check_duration(duration)
     rho0 = check_density_matrix(_as_matrix(rho0), "initial state")
     dim = rho0.shape[0]
-    c_ops = check_operator_shape([_as_matrix(L) for L in (c_ops or [])], dim)
+    if callable(c_ops):
+        # Time-dependent dissipators, e.g. a bath that follows a driven
+        # Hamiltonian (adiabatic master equation).
+        c_of_t = lambda t: flatten_operators(c_ops(t))
+        check_operator_shape(c_of_t(0.0), dim)
+    else:
+        fixed = check_operator_shape(flatten_operators(c_ops or []), dim)
+        c_of_t = lambda t, _c=fixed: _c
 
     if callable(H):
         H_of_t = H
@@ -82,7 +103,7 @@ def evolve(rho0, H, c_ops=None, duration: float = 1.0, steps: int = 200,
 
     def rhs(t, y):
         rho = _unpack(y, dim)
-        return _pack(lindbladian(rho, _as_matrix(H_of_t(t)), c_ops))
+        return _pack(lindbladian(rho, _as_matrix(H_of_t(t)), c_of_t(t)))
 
     times = np.linspace(0.0, duration, steps + 1)
     solution = solve_ivp(

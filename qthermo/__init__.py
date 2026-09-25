@@ -92,6 +92,15 @@ from .strong_coupling import (
     reaction_coordinate_model,
     ultrastrong_limit_state,
 )
+from .information import (
+    ErasureResult,
+    geodesic_schedule,
+    landauer_bound,
+    landauer_erasure,
+    predicted_excess,
+    thermodynamic_length,
+)
+from .baths import instantaneous_bath
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
 __version__ = "0.3.0"
@@ -130,5 +139,7 @@ __all__ = [
     "current_statistics", "CurrentStatistics", "scaled_cgf", "jump_energy",
     "reaction_coordinate_model", "mean_force_state", "ultrastrong_limit_state",
     "rc_convergence",
+    "landauer_erasure", "landauer_bound", "ErasureResult", "geodesic_schedule",
+    "thermodynamic_length", "predicted_excess", "instantaneous_bath",
     "__version__",
 ]

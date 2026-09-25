@@ -246,3 +246,41 @@ def _rc_gibbs():
     m = reaction_coordinate_model(qubit_hamiltonian(1.0), sigma_x, 0.5, lam=0.5,
                                   Omega=2.0, n_levels=10)
     return np.max(np.abs(m.analyze().rho - thermal_state(m.H, 0.5))), 0.0
+
+
+# --- information thermodynamics ----------------------------------------------
+
+@benchmark("slow erasure of one bit: heat released / (T ln 2)",
+           "-> 1; Landauer, IBM J. Res. Dev. 5, 183 (1961); Reeb & Wolf, NJP 16, 103011 (2014)",
+           tolerance=0.01, relative=True, slow=True, group="information")
+def _landauer_slow():
+    from .information import landauer_erasure
+    r = landauer_erasure(200.0, temperature=1.0, schedule="geodesic")
+    return r.heat_to_bath / np.log(2), 1.0
+
+
+@benchmark("finite-time erasure: excess heat x tau, linear ramp",
+           "slow-driving prediction int zeta w'^2; Sivak & Crooks, PRL 108, 190602 (2012)",
+           tolerance=0.01, relative=True, slow=True, group="information")
+def _landauer_linear():
+    from .information import landauer_erasure, predicted_excess
+    return (landauer_erasure(160.0).excess_heat * 160.0,
+            predicted_excess("linear", 1.0))
+
+
+@benchmark("geodesic erasure protocol: excess heat x tau",
+           "= L^2 (thermodynamic length); Scandi & Perarnau-Llobet, Quantum 3, 197 (2019)",
+           tolerance=0.01, relative=True, slow=True, group="information")
+def _landauer_geodesic():
+    from .information import landauer_erasure, thermodynamic_length
+    return (landauer_erasure(160.0, schedule="geodesic").excess_heat * 160.0,
+            thermodynamic_length() ** 2)
+
+
+@benchmark("fast erasure (tau=1): heat released vs Landauer bound",
+           ">= T (S_i - S_f) at any speed (Clausius)",
+           kind="lower", tolerance=0.0, group="information")
+def _landauer_fast():
+    from .information import landauer_erasure
+    r = landauer_erasure(1.0, steps=800)
+    return r.heat_to_bath, r.landauer

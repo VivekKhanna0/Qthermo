@@ -43,6 +43,7 @@ __all__ = [
     "flat_spectrum",
     "ohmic_spectrum",
     "dissipator",
+    "instantaneous_bath",
 ]
 
 
@@ -284,3 +285,32 @@ def local_bath(H_site, coupling, temperature: float, site: int, dims,
                          zero_frequency_rate=zero_frequency_rate)
     return Bath(single.name, [embed(L, site, dims) for L in single.c_ops],
                 temperature, kind="local", sites=(site,))
+
+
+def instantaneous_bath(H_of_t, coupling, temperature: float, gamma: float = 1.0,
+                       spectrum=None, name: str = "bath", sites=(),
+                       cache_size: int = 4096):
+    """A bath that follows a time-dependent Hamiltonian.
+
+    Returns ``t -> [Bath]`` giving, at each instant, the Davies bath built on
+    the instantaneous ``H(t)``: the adiabatic Markovian master equation of
+    Albash, Boixo, Lidar & Zanardi, NJP 14, 123016 (2012). Valid when the
+    driving is slow compared with the bath correlation time; it is the
+    standard model for finite-time erasure and for driven thermalisation
+    strokes. Pass it as a stroke's ``c_ops``.
+
+    The Davies construction is cached per time point, since the ODE solver
+    revisits times.
+    """
+    from functools import lru_cache
+
+    @lru_cache(maxsize=cache_size)
+    def at(t: float):
+        return [davies_bath(_as_matrix(H_of_t(t)), coupling, temperature,
+                            gamma=gamma, spectrum=spectrum, name=name,
+                            sites=sites)]
+
+    def baths(t):
+        return at(float(t))
+    baths.temperature = temperature
+    return baths
