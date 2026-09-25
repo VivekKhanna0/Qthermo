@@ -155,6 +155,74 @@ def _mcwf_stroke(psi, H, c_ops, duration, steps, rng):
     return psi, heat, counts, quanta
 
 
+def _mcwf_stroke_batch(psi, H, c_ops, duration, steps, rng, quanta):
+    """Monte Carlo wave-function evolution of a whole batch over one stroke.
+
+    ``psi`` has shape ``(n_trajectories, dim)``. Every trajectory shares the
+    same propagator, so the no-jump evolution is one matrix product per step;
+    only the trajectories that jump in a step are handled individually.
+    Returns (psi, heat per trajectory, jump counts per trajectory).
+    """
+    n, dim = psi.shape
+    H_of_t = H if callable(H) else (lambda t, _H=_as_matrix(H): _H)
+    dt = duration / steps
+
+    if not c_ops:
+        for k in range(steps):
+            U = expm(-1j * _as_matrix(H_of_t((k + 0.5) * dt)) * dt)
+            psi = psi @ U.T
+        return psi, np.zeros(n), np.zeros((n, 0))
+
+    if callable(c_ops):
+        raise NotImplementedError(
+            "trajectory unravelling of time-dependent baths is not supported "
+            "yet; use Cycle.run for the averaged dynamics")
+    ops = flatten_operators(c_ops)
+    damping = sum(L.conj().T @ L for L in ops)
+    constant = not callable(H)
+    if constant:
+        propagator_T = expm(-1j * (_as_matrix(H_of_t(0.0)) - 0.5j * damping) * dt).T
+
+    heat = np.zeros(n)
+    counts = np.zeros((n, len(ops)))
+    thresholds = rng.random(n)
+    for k in range(steps):
+        if constant:
+            psi = psi @ propagator_T
+        else:
+            H_mid = _as_matrix(H_of_t((k + 0.5) * dt))
+            psi = psi @ expm(-1j * (H_mid - 0.5j * damping) * dt).T
+        norms = np.einsum("ij,ij->i", psi.conj(), psi).real
+        jumping = np.nonzero(norms <= thresholds)[0]
+        if not len(jumping):
+            continue
+        H_now = _as_matrix(H_of_t((k + 1) * dt))
+        phi = psi[jumping] / np.sqrt(norms[jumping])[:, None]
+        before = np.einsum("ij,jk,ik->i", phi.conj(), H_now, phi).real
+        images = np.stack([phi @ L.T for L in ops], axis=1)        # (m, n_ops, dim)
+        weights = np.einsum("mjd,mjd->mj", images.conj(), images).real
+        weights = np.clip(weights, 0.0, None)
+        totals = weights.sum(axis=1)
+        valid = totals > 0
+        cumulative = np.cumsum(weights, axis=1) / np.where(valid, totals, 1.0)[:, None]
+        choice = (rng.random(len(jumping))[:, None] > cumulative).sum(axis=1)
+        choice = np.minimum(choice, len(ops) - 1)
+        new = images[np.arange(len(jumping)), choice]
+        new /= np.linalg.norm(new, axis=1)[:, None]
+        after = np.einsum("ij,jk,ik->i", new.conj(), H_now, new).real
+        delta = np.where(valid, after - before, 0.0)
+        rows = jumping[valid]
+        psi[rows] = new[valid]
+        heat[rows] += delta[valid]
+        counts[rows, choice[valid]] += 1
+        for r, d in zip(rows, delta[valid]):
+            quanta[r].append(float(d))
+        thresholds[jumping] = rng.random(len(jumping))
+
+    psi /= np.linalg.norm(psi, axis=1)[:, None]
+    return psi, heat, counts
+
+
 def unravel(cycle, rho0, trajectories: int = 500, steps: int = 400, seed: int | None = None
             ) -> TrajectoryEnsemble:
     """Run a ``Cycle`` as an ensemble of quantum-jump trajectories.
@@ -163,51 +231,44 @@ def unravel(cycle, rho0, trajectories: int = 500, steps: int = 400, seed: int | 
     physical picture in which the bath exchanges discrete quanta -- and work is
     recovered as the first-law residual, so ``dU = Q + W`` holds exactly on
     every single trajectory.
+
+    ``steps`` is the total number of time steps per cycle, split evenly over
+    the strokes. The jump times are resolved to one step, which biases the
+    statistics at O(rate x dt); for exact single-cycle distributions use
+    :func:`qthermo.counting.cycle_counting`. All trajectories are propagated
+    together, so the cost is dominated by the number of steps, not by the
+    number of trajectories.
     """
     rng = np.random.default_rng(seed)
     rho0 = _as_matrix(rho0)
+    dim = rho0.shape[0]
+
+    eigenvalues, eigenvectors = np.linalg.eigh(rho0)
+    probabilities = np.clip(eigenvalues.real, 0.0, None)
+    probabilities /= probabilities.sum()
+    picks = rng.choice(dim, size=trajectories, p=probabilities)
+    psi = eigenvectors[:, picks].T.astype(complex)            # (N, dim)
 
     heats = np.zeros(trajectories)
     works = np.zeros(trajectories)
+    stroke_heat = {}
     all_counts = []
-    all_quanta = []
-    stroke_heat = {s.name: np.zeros(trajectories) for s in cycle.strokes}
+    quanta = [[] for _ in range(trajectories)]
+    per_stroke = max(steps // max(len(cycle.strokes), 1), 20)
 
-    for index in range(trajectories):
-        psi = _sample_initial_pure_state(rho0, rng)
-        total_heat = 0.0
-        total_work = 0.0
-        counts_per_stroke = []
-        quanta_per_trajectory: list[float] = []
+    for stroke in cycle.strokes:
+        H_initial = _as_matrix(stroke.H(0.0) if callable(stroke.H) else stroke.H)
+        H_final = _as_matrix(stroke.H(stroke.duration) if callable(stroke.H) else stroke.H)
+        energy_before = np.einsum("ij,jk,ik->i", psi.conj(), H_initial, psi).real
+        psi, heat, counts = _mcwf_stroke_batch(psi, stroke.H, stroke.c_ops,
+                                               stroke.duration, per_stroke, rng, quanta)
+        energy_after = np.einsum("ij,jk,ik->i", psi.conj(), H_final, psi).real
+        heats += heat
+        works += (energy_after - energy_before) - heat
+        stroke_heat[stroke.name] = stroke_heat.get(stroke.name, 0.0) + heat
+        all_counts.append(counts)
 
-        for stroke in cycle.strokes:
-            H_initial = (stroke.H(0.0) if callable(stroke.H) else stroke.H)
-            H_final = (stroke.H(stroke.duration)
-                       if callable(stroke.H) else stroke.H)
-
-            energy_before = _expectation(psi, _as_matrix(H_initial))
-            psi, heat, counts, quanta = _mcwf_stroke(
-                psi, stroke.H, stroke.c_ops, stroke.duration,
-                max(steps // max(len(cycle.strokes), 1), 20), rng,
-            )
-            energy_after = _expectation(psi, _as_matrix(H_final))
-
-            total_heat += heat
-            total_work += (energy_after - energy_before) - heat
-            stroke_heat[stroke.name][index] += heat
-            counts_per_stroke.append(counts)
-            quanta_per_trajectory.extend(quanta)
-
-        heats[index] = total_heat
-        works[index] = total_work
-        all_counts.append(np.concatenate(counts_per_stroke)
-                          if counts_per_stroke else np.zeros(0))
-        all_quanta.append(quanta_per_trajectory)
-
-    width = max((c.size for c in all_counts), default=0)
-    padded = np.zeros((trajectories, width))
-    for i, c in enumerate(all_counts):
-        padded[i, :c.size] = c
+    padded = np.concatenate(all_counts, axis=1) if all_counts else np.zeros((trajectories, 0))
 
     # Heat is a sum of jump energies computed as differences of expectation
     # values, so a trajectory whose jumps cancel lands on ~1e-16 rather than
@@ -217,7 +278,7 @@ def unravel(cycle, rho0, trajectories: int = 500, steps: int = 400, seed: int | 
     heats = _snap_zero(heats, scale)
     stroke_heat = {k: _snap_zero(v, scale) for k, v in stroke_heat.items()}
     return TrajectoryEnsemble(heat=heats, work=works,
-                              jump_counts=padded, jump_quanta=all_quanta,
+                              jump_counts=padded, jump_quanta=quanta,
                               stroke_heat=stroke_heat)
 
 
