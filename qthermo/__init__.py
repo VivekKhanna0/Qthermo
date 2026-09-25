@@ -72,6 +72,14 @@ from .subsystems import (
     total_correlation,
 )
 
+from .network import (
+    HeatFlowMap,
+    concurrence,
+    correlation_matrices,
+    heat_flow_map,
+    negativity,
+    virtual_temperature,
+)
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
 __version__ = "0.3.0"
@@ -80,7 +88,8 @@ __version__ = "0.3.0"
 def __getattr__(name):
     """Lazily expose plotting so matplotlib stays an optional dependency."""
     if name in ("plot_cycle", "plot_sweep", "plot_scan",
-                "plot_distribution", "plot_dashboard"):
+                "plot_distribution", "plot_dashboard",
+                "plot_heat_network", "plot_correlations", "plot_machine"):
         from . import plotting
         return getattr(plotting, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -104,5 +113,7 @@ __all__ = [
     "analyze", "steady_state", "liouvillian", "SteadyState",
     "compare_master_equations", "MasterEquationComparison", "trace_distance",
     "models",
+    "heat_flow_map", "HeatFlowMap", "virtual_temperature", "concurrence",
+    "negativity", "correlation_matrices",
     "__version__",
 ]

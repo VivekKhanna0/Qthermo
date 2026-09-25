@@ -275,7 +275,9 @@ class SteadyState:
         lines.append(f"entropy production rate: {self.entropy_production_rate:.4e}"
                      + ("   <-- NEGATIVE: second law violated by this model"
                         if self.entropy_production_rate < -1e-10 else ""))
-        if not np.allclose(self.energy, self.H):
+        scale = max((abs(J) for J in self.currents.values()), default=0.0)
+        if (not np.allclose(self.energy, self.H)
+                and abs(self.work_rate) > 1e-10 * max(scale, 1e-300)):
             lines.append(f"currents measured with a reference energy operator; "
                          f"work rate on system: {self.work_rate:.4e}")
         kinds = {b.kind for b in self.baths}
