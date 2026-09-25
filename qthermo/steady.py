@@ -313,14 +313,50 @@ def _solve_with_trace_row(L, trace_row, rhs, dense, rcond_min=1e-13):
         return sla.lu_solve((lu, piv), rhs, check_finite=False), False
     A = sp.lil_matrix(L)
     A[0, :] = trace_row
+    A = sp.csc_matrix(A)
+    if A.shape[0] > _ITERATIVE_ABOVE:
+        x = _iterative_solve(A, rhs)
+        if x is not None:
+            return x, False
     try:
-        factor = spla.splu(sp.csc_matrix(A))
+        factor = spla.splu(A)
     except RuntimeError:           # exactly singular
         return None, True
     diag = np.abs(factor.U.diagonal())
     if diag.min() < rcond_min * diag.max():
         return None, True
     return factor.solve(rhs), False
+
+
+_ITERATIVE_ABOVE = 16384      # superoperator size (dim > 128) for GMRES
+
+
+def _iterative_solve(A, rhs, rtol: float = 1e-12):
+    """GMRES with an incomplete-LU preconditioner on an RCM-reordered system.
+
+    Direct sparse LU of a many-qubit Liouvillian fills in badly (an 8-qubit
+    chain: ~1e8 non-zeros, minutes, gigabytes); ILU-preconditioned GMRES
+    solves the same system in seconds and a fraction of the memory. Returns
+    None when it does not converge, so the caller can fall back to LU.
+    """
+    from scipy.sparse.csgraph import reverse_cuthill_mckee
+
+    pattern = sp.csr_matrix(abs(A) + abs(A.T))
+    perm = reverse_cuthill_mckee(pattern, symmetric_mode=True)
+    Ap = sp.csc_matrix(A[perm][:, perm])
+    try:
+        ilu = spla.spilu(Ap, drop_tol=1e-4, fill_factor=30, permc_spec="NATURAL")
+    except RuntimeError:
+        return None
+    M = spla.LinearOperator(Ap.shape, ilu.solve)
+    xp, info = spla.gmres(Ap, rhs[perm], M=M, rtol=rtol, restart=200, maxiter=2000)
+    if info != 0 or not np.all(np.isfinite(xp)):
+        return None
+    x = np.empty_like(xp)
+    x[perm] = xp
+    if np.linalg.norm(A @ x - rhs) > 1e-8 * max(np.linalg.norm(rhs), 1.0):
+        return None
+    return x
 
 
 def _relaxed_state(L: np.ndarray, rho0, dim: int, tol: float) -> np.ndarray:

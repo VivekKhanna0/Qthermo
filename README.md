@@ -377,9 +377,13 @@ distributions.
   is exact for a single-peaked (Brownian) spectral density and approximate
   otherwise. No HEOM, no Redfield (non-GKLS) equations.
 - **Lamb shifts are neglected** in the Davies construction.
-- **Size:** dense or sparse matrices, no tensor networks. Global-bath steady
-  states run to a few hundred levels (the 200-level RC model takes ~20 s);
-  current fluctuations use dense superoperators and suit a few dozen levels.
+- **Size:** dense or sparse matrices, no tensor networks.
+  - Global-bath steady states run to a few hundred levels; the 200-level RC
+    model takes about 20 s.
+  - Local-bath chains take seconds up to 7 qubits and about 25 s at 8 qubits
+    (0.6 GB), using ILU-preconditioned GMRES above 128 levels. 9 qubits takes
+    minutes.
+  - Current fluctuations use dense superoperators and suit a few dozen levels.
 - **Periodically driven machines** use the full-secular Floquet–Markov
   equation. It is valid when quasienergy differences are resolved on the scale
   of the bath rates, and warns when they are not.

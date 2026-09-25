@@ -97,6 +97,12 @@ test, with threshold `1e-13`. A non-unique steady state raises, unless
 When every bath is a Davies bath of the same `H`, the solve runs in the
 eigenbasis of `H`, where the jump operators are sparse.
 
+For superoperators larger than 16384 (above 128 levels), the bordered system
+is first reordered by reverse Cuthill–McKee. It is then solved with GMRES
+(relative tolerance `1e-12`, restart 200), preconditioned by an incomplete LU
+with drop tolerance `1e-4`. The residual is checked, and the solver falls back
+to sparse LU if GMRES fails.
+
 ### Heat currents and entropy production
 
     J_k = Tr[E D_k(ρ_ss)]

@@ -222,3 +222,13 @@ def test_xx_chain_current_is_length_independent_and_zz_makes_it_decay():
     assert np.allclose(xx, xx[0], rtol=1e-10)
     zz = [J(n, 2.0) for n in (2, 3, 4, 5)]
     assert np.all(np.diff(zz) < 0)
+
+
+def test_iterative_solver_agrees_with_direct(monkeypatch):
+    import qthermo.steady as steady_module
+    m = models.spin_chain(4, J=0.5, delta=1.0, T_left=5.0, T_right=0.5, gamma=0.5,
+                          master_equation="local")
+    direct = qt.steady_state(m.H, m.baths)
+    monkeypatch.setattr(steady_module, "_ITERATIVE_ABOVE", 0)
+    iterative = qt.steady_state(m.H, m.baths)
+    assert np.max(np.abs(direct - iterative)) < 1e-10
