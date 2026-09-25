@@ -22,6 +22,7 @@ of them on every push.
 | [`driven_machine.py`](driven_machine.py) | A periodically driven qubit as engine and refrigerator (Floquet) | ~5 s |
 | [`transport_scaling.py`](transport_scaling.py) | Ballistic vs graded heat transport through spin chains | ~15 s |
 | [`quantum_battery.py`](quantum_battery.py) | Collective charging advantage; coherent and locked ergotropy | ~20 s |
+| [`explorer.py`](explorer.py) | Interactive HTML pages: drag a parameter, switch local/global, watch the heat flow | ~5 s |
 | [`otto_refrigerator.py`](otto_refrigerator.py) | The single-qubit Otto fridge: averages, trajectories, exact distribution | ~2 s |
 | [`heat_engine.py`](heat_engine.py) | The same code as an engine | ~1 s |
 | [`full_demo.py`](full_demo.py) | Sweeps, joint scans, Pareto fronts and reliability for the Otto fridge | ~20 s |

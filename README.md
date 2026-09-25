@@ -144,6 +144,7 @@ of them. QuTiP `Qobj`s are accepted anywhere an array is.
 | use lab numbers (GHz, mK, µs, W) | `lab = qt.LabUnits(5.0)`; `lab.temperature(20)`, `lab.rate(1/T1)`, `lab.to_watts(J)` |
 | save results with provenance | `qt.save(result, "file.json")` |
 | send a colleague the result *and* the checks | `qt.report(model, "machine.html")`, a single self-contained page |
+| an interactive page with a parameter slider | `qt.explorer(build, values, path="x.html")` |
 | confirm the package is right | `python -m qthermo.benchmarks` |
 
 ## What it catches

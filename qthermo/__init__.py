@@ -119,6 +119,7 @@ from .transient import TransientResult, product_thermal_state, transient
 from .response import ThermalResponse, response
 from .report import report
 from .models import Model, build_model
+from .explorer import explorer
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
 __version__ = "0.5.0"
@@ -170,6 +171,6 @@ __all__ = [
     "floquet_analyze", "floquet_states", "DrivenBath", "FloquetSteadyState",
     "window_spectrum", "LabUnits", "PLANCK", "HBAR", "BOLTZMANN",
     "transient", "TransientResult", "product_thermal_state",
-    "response", "ThermalResponse", "report", "szilard_engine", "FeedbackResult",
+    "response", "ThermalResponse", "report", "explorer", "szilard_engine", "FeedbackResult",
     "__version__",
 ]
