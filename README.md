@@ -135,7 +135,7 @@ print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
 | **Fluctuations** | `current_statistics`, `scaled_cgf` | Exact vs tilted-generator vs independent classical FCS (1e-10); Gallavotti–Cohen symmetry to 1e-15; TUR holds for all classical machines, violated by the maser as published |
 | **Strong coupling** | `reaction_coordinate_model`, `mean_force_state` | O(λ²) weak-coupling limit; Cresser–Anders ultrastrong limit; heat-current turnover |
 | **Information** | `landauer_erasure`, `geodesic_schedule`, `thermodynamic_length` | → T ln 2; excess ∝ 1/τ matching slow-driving theory to <1%; geodesic attains L²/τ |
-| **Trajectories** | `unravel`, `jarzynski_tpm` | Trajectory mean reproduces master equation; Jarzynski to 1e-16 |
+| **Per-cycle statistics** | `cycle_counting` (exact), `unravel` (sampled) | Exact P(n) vs independent classical telegraph model (1e-12); vs trajectories; Jarzynski to 1e-16 |
 | **Optimisation** | `sweep`, `scan_2d`, `pareto_front` | Interior optimum located; sequential vs joint tuning |
 
 ## Figures
@@ -237,9 +237,32 @@ cycle = qt.Cycle([
 result, passes, converged = cycle.limit_cycle(qt.thermal_state(H_cold, 1.0))
 result.cop(("cold_iso",))
 
+counts = qt.cycle_counting(cycle, {"cold_iso": "quanta"})   # exact, no sampling
+counts.probability(lambda n: n <= 0)     # 0.7955: 80% of cycles extract nothing
+print(counts.report())
+
 ensemble = qt.unravel(cycle, result.strokes[-1].rho_final, trajectories=6000)
-ensemble.probability_of("cold_iso", lambda q: q <= 0)   # ~0.5: half the runs cool nothing
+ensemble.probability_of("cold_iso", lambda q: q <= 0)   # ~0.79, sampled
 ```
+```
+net quanta exchanged per cycle, counting cold_iso (quanta)
+    n   P(n), one cycle
+   -1          0.175299  #######
+    0          0.620249  #########################
+    1          0.204453  ########
+one cycle:  mean +0.029154, P(n <= 0) = 0.795547
+long run:   mean +0.029154 per cycle, variance 0.378901, Fano 12.9965
+```
+
+On average this refrigerator cools. In 80% of individual cycles it draws
+nothing from the cold bath, a number the master equation cannot give.
+`cycle_counting` computes the single-cycle distribution *exactly*, by
+propagating the counting-field master equation through the strokes, and the
+long-run noise from its dominant eigenvalue. `unravel` samples the same thing
+with quantum-jump trajectories. (Earlier versions of this README said "about
+half": that was floating-point round-off in the sampled heats misclassifying
+zero-heat trajectories, found by comparing against the exact result, and now
+fixed.)
 
 Heat and work use the midpoint Alicki split, which satisfies `dU = Q + W` to
 machine precision at every step. That makes the first-law residual a test of

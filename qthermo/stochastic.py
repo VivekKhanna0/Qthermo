@@ -209,9 +209,22 @@ def unravel(cycle, rho0, trajectories: int = 500, steps: int = 400, seed: int | 
     for i, c in enumerate(all_counts):
         padded[i, :c.size] = c
 
+    # Heat is a sum of jump energies computed as differences of expectation
+    # values, so a trajectory whose jumps cancel lands on ~1e-16 rather than
+    # exactly 0. Snap that round-off: otherwise predicates such as q <= 0
+    # silently misclassify every such trajectory.
+    scale = max([np.max(np.abs(a)) for a in [heats, *stroke_heat.values()]] + [1.0])
+    heats = _snap_zero(heats, scale)
+    stroke_heat = {k: _snap_zero(v, scale) for k, v in stroke_heat.items()}
     return TrajectoryEnsemble(heat=heats, work=works,
                               jump_counts=padded, jump_quanta=all_quanta,
                               stroke_heat=stroke_heat)
+
+
+def _snap_zero(values, scale, rtol=1e-9):
+    values = np.array(values, dtype=float)
+    values[np.abs(values) < rtol * scale] = 0.0
+    return values
 
 
 def _propagator(H_of_t, duration: float, dim: int, steps: int = 400) -> np.ndarray:

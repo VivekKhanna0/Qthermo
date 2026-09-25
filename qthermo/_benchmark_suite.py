@@ -330,3 +330,15 @@ def _gallavotti_cohen():
     A = 1 / 0.5 - 1 / 2.0
     return np.max(np.abs(scaled_cgf(m, {"left": "energy"}, s)
                          - scaled_cgf(m, {"left": "energy"}, -s - A))), 0.0
+
+
+@benchmark("exact single-cycle counting: P(1 emission) of a decaying qubit",
+           "= 1 - exp(-gamma tau) (exponential decay)",
+           tolerance=1e-12, group="fluctuations")
+def _counting_decay():
+    from .channels import amplitude_damping
+    from .counting import cycle_counting
+    cycle = Cycle([Stroke("decay", qubit_hamiltonian(1.0), 1.3, amplitude_damping(0.7))])
+    dist = cycle_counting(cycle, {"decay": "quanta"},
+                          rho_start=np.diag([0.0, 1.0]).astype(complex)).distribution(4)
+    return dist[-1], 1 - np.exp(-0.7 * 1.3)
