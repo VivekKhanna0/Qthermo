@@ -174,8 +174,8 @@ print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
 
 ## Figures
 
-Each comes from one script in `examples/`, and each script prints the numbers
-behind its figure.
+Each comes from one script in `examples/` ([index](examples/README.md)), and
+each script prints the numbers behind its figure.
 
 <table>
 <tr>
