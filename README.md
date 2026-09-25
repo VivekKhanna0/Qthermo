@@ -242,7 +242,7 @@ quantum batteries.
 
 ```bash
 python -m qthermo.benchmarks     # computed value next to the published / analytic one
-python -m pytest                 # ~235 tests, ~90 s
+python -m pytest                 # ~265 tests, ~90 s
 ```
 
 Every benchmark is a number fixed independently of this code: a closed-form
@@ -370,8 +370,12 @@ problems would help:
 - **The regime between local and global.** With J ≈ γ, neither master
   equation is controlled; the tutorial's thermal diode even changes direction
   between them. A naive "unified" (partially secular) construction was
-  prototyped and gave erratic currents, so it was not shipped. Which
-  construction would you trust here, and against which exact benchmark?
+  prototyped and gave erratic currents, so it was not shipped. A Bloch–Redfield
+  prototype did better: for two detuned coupled oscillators it matched the
+  exact (Landauer) heat current to within 2%, where the local equation was off
+  by about 10% and the global one by up to 7%. Would a Redfield option (not
+  completely positive) be useful to you, or is there a construction you
+  trust more?
 - **Collective baths.** N qubits coupled to one bath through their total
   spin carry more heat per qubit than N independent ones. At the temperatures
   tried, the gain saturates near 2.6× instead of growing with N. Is there a
