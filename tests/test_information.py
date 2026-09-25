@@ -112,3 +112,34 @@ def test_stroke_rejects_mixed_or_doubly_specified_baths():
         qt.Stroke("s", H, 1.0, [bath, qt.sigma_minus])
     with pytest.raises(qt.QThermoError, match="own temperatures"):
         qt.Stroke("s", H, 1.0, [bath], temperature=1.0)
+
+
+# --- measurement and feedback -----------------------------------------------------
+
+def test_szilard_engine_extracts_T_ln_2_from_a_perfect_measurement():
+    r = qt.szilard_engine(temperature=0.8)
+    assert np.isclose(r.information, np.log(2))
+    assert np.isclose(r.work_extracted, 0.8 * np.log(2), rtol=1e-8)
+
+
+@pytest.mark.parametrize("error", [0.02, 0.1, 0.3])
+def test_optimal_feedback_saturates_sagawa_ueda_with_errors(error):
+    """Horowitz & Parrondo (2011): W = T I exactly, I = ln 2 - H(error)."""
+    r = qt.szilard_engine(temperature=1.3, error=error)
+    H = -(error * np.log(error) + (1 - error) * np.log(1 - error))
+    assert np.isclose(r.information, np.log(2) - H, atol=1e-12)
+    assert np.isclose(r.work_extracted, r.bound, rtol=1e-10)
+
+
+def test_non_degenerate_memory_still_saturates_the_bound():
+    r = qt.szilard_engine(temperature=0.7, gap=0.5, error=0.1)
+    assert 0 < r.information < np.log(2)
+    assert np.isclose(r.work_extracted, r.bound, rtol=1e-10)
+
+
+def test_finite_time_feedback_stays_below_the_bound_and_approaches_it():
+    works = [qt.szilard_engine(temperature=1.0, tau=tau, steps=1200, depth=10.0).work_extracted
+             for tau in (20.0, 80.0)]
+    bound = qt.szilard_engine(temperature=1.0, depth=10.0).work_extracted
+    assert works[0] < works[1] < bound
+    assert (bound - works[1]) * 80 < 1.3 * (bound - works[0]) * 20   # ~1/tau

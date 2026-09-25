@@ -500,3 +500,12 @@ def _transistor_gain():
     r = response(lambda T: thermal_transistor(T_L=T["L"], T_M=T["M"], T_R=T["R"]),
                  {"L": 1.0, "M": 0.1, "R": 0.2})
     return abs(r.amplification("M", "R")), 1.0
+
+
+@benchmark("Szilard engine with 10% measurement error: work / (T I)",
+           "= 1 (optimal feedback saturates Sagawa-Ueda); Horowitz & Parrondo, NJP 13, 123019 (2011)",
+           tolerance=1e-9, group="information")
+def _szilard():
+    from .information import szilard_engine
+    r = szilard_engine(temperature=1.0, error=0.1)
+    return r.work_extracted / r.bound, 1.0

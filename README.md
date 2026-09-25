@@ -110,6 +110,7 @@ QuTiP `Qobj`s are accepted anywhere an array is.
 | scan any machine over parameters | `qt.sweep`, `qt.scan_2d`, `qt.pareto_front` |
 | go beyond weak coupling | `qt.reaction_coordinate_model`, `qt.rc_convergence` |
 | cost of erasure and the optimal protocol | `qt.landauer_erasure`, `qt.geodesic_schedule` |
+| work from information (measurement + feedback) | `qt.szilard_engine(T, error=..., tau=...)` |
 | the least-dissipative schedule for *my* drive | `qt.optimal_schedule(H_of, baths_of, T, path)` |
 | a machine powered by a periodic drive | `qt.floquet_analyze(H_of_t, period, [qt.DrivenBath(...)])` |
 | what happens after switching a machine on | `qt.transient(model, rho0, duration)` |
@@ -167,7 +168,7 @@ print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
 | **Where the heat goes** | `heat_flow_map`, `plot_machine`, virtual temperatures, concurrence, negativity | Site balances close to 1e-17; Werner-state entanglement threshold |
 | **Fluctuations** | `current_statistics`, `scaled_cgf` | Exact vs tilted-generator vs independent classical FCS (1e-10); Gallavotti–Cohen symmetry to 1e-15; TUR holds for all classical machines, violated by the maser as published |
 | **Strong coupling** | `reaction_coordinate_model`, `mean_force_state` | O(λ²) weak-coupling limit; Cresser–Anders ultrastrong limit; heat-current turnover |
-| **Information** | `landauer_erasure`, `geodesic_schedule`, `thermodynamic_length` | → T ln 2; excess ∝ 1/τ matching slow-driving theory to <1%; geodesic attains L²/τ |
+| **Information** | `landauer_erasure`, `geodesic_schedule`, `thermodynamic_length`, `szilard_engine` | Erasure → T ln 2; excess ∝ 1/τ matching slow-driving theory to <1%; geodesic attains L²/τ. Szilard engine attains the Sagawa–Ueda bound T·I exactly, including with measurement errors |
 | **Periodically driven machines** | `floquet_analyze`, `DrivenBath`, `window_spectrum` | Undriven limit = static Davies (1e-14); Bessel sideband weights; tight-coupling efficiency and COP of the modulated-qubit machine to 1e-7; σ ≥ 0 for random drives |
 | **Linear response** | `response` → conductance, Onsager matrix, coupling `q`, `amplification` | Onsager reciprocity to 1e-9; tight coupling \|q\| = 1 for the local fridge; thermal-transistor gain 4.8 |
 | **Transients** | `transient`, `product_thermal_state` | Long-time limit = steady state; cumulative heat balances ΔE; single-shot cooling below steady state |
@@ -242,6 +243,15 @@ A transverse-field Ising pair run as an Otto engine, site by site and stroke by
 stroke. The cold bath drives the pair into an <i>entangled</i> Gibbs state
 (concurrence 0.45), the fast compression ramp partly unwinds it, and the hot
 bath destroys it. Fast ramps cost efficiency: 0.515 against 0.648 quasi-static.</td>
+</tr>
+<tr>
+<td colspan="2"><img src="examples/figures/szilard_engine.png" alt="quantum Szilard engine"></td>
+</tr>
+<tr>
+<td colspan="2"><b>Information into work</b> (<code>szilard_engine.py</code>). Measure a
+qubit memory, then feed back. Optimal feedback extracts exactly T·I, the
+Sagawa–Ueda bound (dots on the line), even when the measurement is wrong a
+given fraction of the time. In finite time it falls short by ~1/τ.</td>
 </tr>
 <tr>
 <td colspan="2"><img src="examples/figures/optimal_protocol.png" alt="optimal driving protocol"></td>

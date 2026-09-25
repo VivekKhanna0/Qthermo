@@ -214,6 +214,26 @@ Slow-driving friction:
 
 `geodesic_schedule` runs at constant `√ζ ω̇`, which attains `L²/τ`.
 
+## Measurement and feedback — `szilard_engine`
+
+**Memory.** `H0 = diag(0, gap)`, starting in its Gibbs state `p`.
+
+**Measurement.** A binary symmetric channel with error `ε`. The outcome
+probabilities are `p_k = Σ_s P(k|s) p_s`, the posterior is
+`P(s|k) = P(k|s) p_s / p_k`, and the mutual information is
+`I = H(p) − Σ_k p_k H(P(·|k))`.
+
+**Feedback for outcome `k`:**
+1. Quench to `H_k = −T ln P(·|k)`, capped at `depth·T`. The post-measurement
+   state is the Gibbs state of `H_k`, so the quench costs only
+   `Tr[ρ_k(H_k − H0)]`.
+2. Return to `H0`. Quasi-statically this costs `F(H0) − F(H_k)`. In finite
+   time it is a stroke with an Ohmic Davies bath following `H(t)`, and the
+   stroke's work is used.
+
+Extracted work is minus the total. Quasi-statically `⟨W⟩ = T I`
+(Horowitz & Parrondo, NJP 13, 123019 (2011)).
+
 ## Optimal protocols — `friction`, `optimal_schedule`
 
 For `H(λ)` with a thermalising generator `𝓛_λ` (fixed point `π_λ`, the Gibbs

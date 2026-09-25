@@ -28,7 +28,7 @@ import numpy as np
 
 from scipy.integrate import quad
 
-from .baths import Bath
+from .baths import Bath, ohmic_spectrum
 from .channels import qubit_hamiltonian, sigma_minus, sigma_plus
 from .core import von_neumann_entropy
 from .cycle import Cycle, Stroke
@@ -43,6 +43,8 @@ __all__ = [
     "thermodynamic_length",
     "geodesic_schedule",
     "predicted_excess",
+    "FeedbackResult",
+    "szilard_engine",
 ]
 
 
@@ -273,3 +275,109 @@ def landauer_erasure(tau: float, temperature: float = 1.0,
         error_probability=float(np.real(rho_f[1, 1])),
         rho_final=rho_f, stroke=result,
     )
+
+
+# --- measurement and feedback: the Szilard engine --------------------------------
+
+@dataclass
+class FeedbackResult:
+    """One cycle of a measurement-and-feedback engine."""
+
+    temperature: float
+    information: float          # mutual information between outcome and state
+    work_extracted: float       # average over outcomes
+    outcome_probabilities: np.ndarray
+    per_outcome_work: np.ndarray
+    tau: float | None
+
+    @property
+    def bound(self) -> float:
+        """Sagawa-Ueda bound ``T I`` on the extracted work."""
+        return self.temperature * self.information
+
+    @property
+    def efficiency(self) -> float:
+        """Fraction of the information turned into work, ``W / (T I)``."""
+        return self.work_extracted / self.bound if self.bound > 0 else float("nan")
+
+    def report(self) -> str:
+        tau = "quasi-static" if self.tau is None else f"tau = {self.tau:g}"
+        return "\n".join([
+            f"Szilard engine at T = {self.temperature:g} ({tau})",
+            f"  information gained I     : {self.information:.6f} nats",
+            f"  work extracted <W>       : {self.work_extracted:.6f}",
+            f"  Sagawa-Ueda bound T I    : {self.bound:.6f}",
+            f"  fraction of bound        : {self.efficiency:.4f}",
+        ])
+
+
+def _binary_entropy(p):
+    p = np.clip(np.asarray(p, dtype=float), 1e-300, 1.0)
+    return float(-np.sum(p * np.log(p)))
+
+
+def szilard_engine(temperature: float = 1.0, gap: float = 0.0, error: float = 0.0,
+                   tau: float | None = None, gamma: float = 1.0, steps: int = 2000,
+                   depth: float = 20.0) -> FeedbackResult:
+    """Quantum Szilard engine with a qubit memory: measure, then feed back.
+
+    The qubit ``H0 = diag(0, gap)`` starts in its Gibbs state. Its energy is
+    measured with error probability ``error`` (a binary symmetric channel).
+    Given outcome ``k``, the Hamiltonian is quenched to ``H_k``, whose Gibbs
+    state *is* the post-measurement (posterior) state -- so the quench
+    dissipates nothing -- and then returned to ``H0`` isothermally while in
+    contact with the bath. That is the optimal feedback of Horowitz & Parrondo,
+    NJP 13, 123019 (2011): quasi-statically it extracts exactly ``T I``, the
+    Sagawa-Ueda bound (PRL 100, 080403 (2008)), where ``I`` is the mutual
+    information between outcome and state.
+
+    ``tau=None`` gives the quasi-static result in closed form; a finite ``tau``
+    simulates the isothermal return as a driven open-system stroke (Ohmic bath
+    following ``H(t)``) and extracts less, by ~1/tau. ``depth`` caps the energy
+    (in units of T) of a state the posterior says is never occupied: the
+    quasi-static result then falls short of ``T I`` by ~exp(-depth) for a
+    perfect measurement, while a shallower quench lowers finite-time friction.
+    """
+    from .baths import davies_bath
+    from .core import free_energy
+
+    T = temperature
+    if not 0 <= error < 0.5:
+        raise QThermoError("error probability must be in [0, 0.5)")
+    E0 = np.array([0.0, float(gap)])
+    p = np.exp(-(E0 - E0.min()) / T)
+    p /= p.sum()                                       # prior populations
+    channel = np.array([[1 - error, error], [error, 1 - error]])   # P(k | state)
+    p_k = channel @ p                                  # outcome probabilities
+    posterior = (channel * p[None, :]) / p_k[:, None]  # P(state | k), rows k
+    information = _binary_entropy(p) - float(np.sum(p_k * [
+        _binary_entropy(row) for row in posterior]))
+
+    works = []
+    H0 = np.diag(E0).astype(complex)
+    for k in range(2):
+        q = np.clip(posterior[k], 1e-300, None)
+        E_k = -T * np.log(q)
+        E_k = np.minimum(E_k - E_k.min(), depth * T)   # Gibbs(H_k) = posterior
+        H_k = np.diag(E_k).astype(complex)
+        rho = np.diag(posterior[k]).astype(complex)
+        quench = float(np.real(np.trace(rho @ (H_k - H0))))
+        if tau is None:
+            ramp = free_energy(H0, T) - free_energy(H_k, T)
+        else:
+            H_of_t = lambda t, a=H_k: a + (t / tau) * (H0 - a)
+
+            def baths(t, H_of_t=H_of_t):
+                H = H_of_t(t)
+                return [davies_bath(H + 1e-9 * np.diag([0.0, 1.0]), sigma_x_matrix(), T,
+                                    spectrum=ohmic_spectrum(gamma, reference=T),
+                                    name="bath")]
+            stroke = Stroke("isothermal", H_of_t, tau, baths, steps=steps)
+            ramp = Cycle([stroke]).run(rho).strokes[0].work
+        works.append(-(quench + ramp))
+    works = np.array(works)
+    return FeedbackResult(T, information, float(np.sum(p_k * works)), p_k, works, tau)
+
+
+def sigma_x_matrix():
+    return np.array([[0, 1], [1, 0]], dtype=complex)

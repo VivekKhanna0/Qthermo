@@ -12,6 +12,7 @@ of them on every push.
 | [`uncertainty_relation.py`](uncertainty_relation.py) | Can a quantum machine be more precise than the TUR allows? | ~1 s |
 | [`strong_coupling.py`](strong_coupling.py) | What does weak-coupling theory miss at strong coupling? | ~40 s |
 | [`landauer.py`](landauer.py) | What does erasing a bit cost in finite time, and what is the cheapest protocol? | ~30 s |
+| [`szilard_engine.py`](szilard_engine.py) | Work from information: measurement, feedback and the Sagawa-Ueda bound | ~15 s |
 | [`optimal_protocol.py`](optimal_protocol.py) | The least-dissipative schedule for an arbitrary (non-commuting) drive | ~70 s |
 | [`coupled_otto.py`](coupled_otto.py) | Does coupling two qubits improve an Otto engine? | ~6 s |
 | [`multiqubit_cycle.py`](multiqubit_cycle.py) | Inside a two-qubit engine: energy, temperature, entanglement stroke by stroke | ~5 s |

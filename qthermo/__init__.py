@@ -96,6 +96,8 @@ from .strong_coupling import (
 )
 from .information import (
     ErasureResult,
+    FeedbackResult,
+    szilard_engine,
     geodesic_schedule,
     landauer_bound,
     landauer_erasure,
@@ -167,6 +169,6 @@ __all__ = [
     "floquet_analyze", "floquet_states", "DrivenBath", "FloquetSteadyState",
     "window_spectrum", "LabUnits", "PLANCK", "HBAR", "BOLTZMANN",
     "transient", "TransientResult", "product_thermal_state",
-    "response", "ThermalResponse", "report",
+    "response", "ThermalResponse", "report", "szilard_engine", "FeedbackResult",
     "__version__",
 ]
