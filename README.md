@@ -1,313 +1,275 @@
 # qthermo
 
-Thermodynamic analysis for open quantum systems.
+Thermodynamic bookkeeping for open quantum systems — heat, work, entropy
+production, currents and their fluctuations — with the modelling traps checked
+for you.
 
-Define a thermodynamic cycle as a sequence of strokes and get heat, work,
-entropy production, COP and figure of merit — deterministically from the
-master equation, or trajectory-resolved with full distributions.
-
-**Status: early prototype.** Single-qubit working media, Markovian baths. The
-physics below is validated against analytic limits; everything beyond that is
-roadmap, not a claim.
-
-## Quick start
-
-```bash
-git clone https://github.com/VivekKhanna0/Qthermo.git
-cd Qthermo
-pip install numpy scipy matplotlib
-python examples/full_demo.py
-```
-
-That runs the whole workflow on one machine and writes every figure below to
-`examples/figures/`. To check the physics instead:
+You write down a Hamiltonian and the baths. `qthermo` gives you per-bath heat
+currents, entropy production, efficiencies against their Carnot bounds,
+site-resolved energy flows, exact current fluctuations and uncertainty-relation
+ratios, for stroke machines and continuous machines, from one qubit to a few
+hundred levels. It also tells you when the model you wrote down cannot mean
+what you think it means.
 
 ```bash
-python tests/test_physics.py     # 17 tests, all should pass
+git clone https://github.com/VivekKhanna0/Qthermo.git && cd Qthermo
+pip install -e ".[plot]"          # numpy, scipy; matplotlib for figures
+python -m qthermo.benchmarks      # 26 checks against published results, ~10 s
 ```
 
-## Why
-
-Quantum thermodynamics has no shared implementation of its own core
-quantities. QuTiP provides `entropy_vn` — the von Neumann entropy of a state at
-an instant — but heat, work, entropy *production*, COP and figures of merit are
-re-derived by hand in each new paper, along with the stroke-chaining
-bookkeeping that connects them. `qthermo` packages that layer, in the same
-spirit as Mitiq packaging error-mitigation techniques that groups were each
-reimplementing.
-
-The part that is more than packaging is the stochastic layer. The master
-equation returns the *average* heat. A single run of a quantum thermal machine
-either emits a quantum into the bath or it does not, and the distribution over
-runs is a different object from its mean — which is where reliability lives,
-and what fluctuation theorems constrain.
-
-## Install
-
-```bash
-git clone <repo> && cd qthermo
-pip install -e .
-```
-
-Requires numpy and scipy. QuTiP is optional: `Qobj` inputs are accepted
-anywhere an array is, so existing QuTiP models work unchanged.
-
-## Example
+## Thirty seconds
 
 ```python
 import qthermo as qt
-from qthermo.cycle import Cycle, Stroke
 
-H_cold = qt.qubit_hamiltonian(1.0)
-H_hot  = qt.qubit_hamiltonian(1.5)
-ramp   = lambda a, b, tau: (lambda t: qt.qubit_hamiltonian(a + (t/tau)*(b-a)))
-
-cycle = Cycle([
-    Stroke("cold_iso", H_cold, 12.0, qt.thermal_bath(1.0, 1.0, 1.0), temperature=1.0),
-    Stroke("compress", ramp(1.0, 1.5, 0.02), 0.02),
-    Stroke("hot_iso",  H_hot,  12.0, qt.thermal_bath(1.0, 1.5, 1.3), temperature=1.3),
-    Stroke("expand",   ramp(1.5, 1.0, 0.02), 0.02),
-])
-
-result, passes, converged = cycle.limit_cycle(
-    qt.thermal_state(H_cold, 1.0)
-)
-print(result.report())
-print(result.cop(("cold_iso",)))
+fridge = qt.models.absorption_refrigerator(T_c=1.0, T_h=6.0, T_r=1.5)
+steady = fridge.analyze()
+print(steady.report())
+```
+```
+bath                  T   J (into system)          -J/T
+-------------------------------------------------------
+cold                  1      6.963227e-04   -6.9632e-04
+hot                   6      2.088968e-03   -3.4816e-04
+room                1.5     -2.785291e-03    1.8569e-03
+-------------------------------------------------------
+sum                             1.301e-18    8.1238e-04
+entropy production rate: 8.1238e-04
+note: local baths -- valid only for inter-site coupling << bath rates; compare with global baths
+```
+```python
+steady.cop("cold", "hot")                                  # 0.3333 = w_c / w_h exactly
+steady.absorption_carnot_cop("cold", "hot", "room")        # 1.5
+print(fridge.compare().report())       # would "you used a local master equation" change anything?
+```
+```
+bath                 J local      J global   rel. diff
+------------------------------------------------------
+cold             6.96323e-04   7.53796e-04       7.62%
+hot              2.08897e-03   2.27304e-03       8.10%
+room            -2.78529e-03  -3.02684e-03       7.98%
+------------------------------------------------------
+entropy production rate: local 8.1238e-04, global 8.8526e-04
+steady-state trace distance: 1.040e-02
+```
+```python
+qt.plot_machine(steady)      # the figure below
 ```
 
-```
-stroke                    Q            W           dU        sigma
-------------------------------------------------------------------
-cold_iso          2.915e-02    0.000e+00    2.915e-02    2.214e-03
-compress          0.000e+00   -1.155e-01   -1.155e-01           --
-hot_iso          -4.373e-02    0.000e+00   -4.373e-02    2.271e-03
-expand            0.000e+00    1.301e-01    1.301e-01           --
-------------------------------------------------------------------
-max |dU - (Q+W)| = 3.33e-16
-```
+<img src="examples/figures/absorption_fridge.png" width="620" alt="heat-flow network of the absorption refrigerator">
 
-### Trajectories
+Baths (squares) and qubits (circles) share one temperature colour scale; each
+qubit is coloured by its **virtual temperature**. The cold qubit is colder
+than every bath, which nothing passive can do. Arrow widths are heat
+currents, and the internal balances close to ~1e-17.
+
+## Your own model
+
+Nothing above is special-cased. A machine is a Hamiltonian plus named baths:
 
 ```python
-ensemble = qt.unravel(cycle, rho_limit, trajectories=6000)
-ensemble.probability_of("cold_iso", lambda q: q <= 0)   # -> 0.525
+dims = [2, 2]
+h0, h1 = qt.qubit_hamiltonian(1.0), qt.qubit_hamiltonian(0.6)
+V = 0.3 * qt.embed(qt.sigma_x, 0, dims) @ qt.embed(qt.sigma_x, 1, dims)
+H = qt.embed(h0, 0, dims) + qt.embed(h1, 1, dims) + V
+
+hot  = qt.davies_bath(H, qt.embed(qt.sigma_x, 0, dims), temperature=2.0, gamma=0.1, name="hot")
+cold = qt.davies_bath(H, qt.embed(qt.sigma_x, 1, dims), temperature=1.0, gamma=0.1, name="cold")
+
+result = qt.analyze(H, [hot, cold])                           # exact steady state, per-bath currents
+stats  = qt.current_statistics(H, "hot", baths=[hot, cold])   # exact noise, TUR / KUR ratios
+flows  = qt.heat_flow_map(result, dims=dims, local_H=[h0, h1],
+                          interaction_terms={(0, 1): V})   # who heats whom, virtual temperatures
 ```
 
-On average this refrigerator cools. On any individual run it draws no heat at
-all out of the cold bath about half the time. That number is not recoverable
-from the master equation, which reports only the mean.
+`davies_bath` builds the *global* (secular, detailed-balance) master equation
+for any Hamiltonian: coupled, degenerate, many-body. `local_bath` builds the
+local one. Both return the same `Bath` object, so every tool accepts either.
+QuTiP `Qobj`s are accepted anywhere an array is.
 
-## Validation
+## What it catches
 
-Every check below is a number thermodynamics fixes independently of this
-implementation, so a failure means the physics is wrong rather than that an
-interface changed.
+Most of the value is here. Each of these is a mistake that produces a plausible
+number with no error message, and each is detected and explained:
 
-| Check | Result |
-|---|---|
-| First law, `dU = Q + W`, per stroke | residual `3.3e-16` |
-| Thermal fixed point (bath drives state to Gibbs) | `< 1e-6` |
-| Entropy production non-negative (Spohn) | holds on all dissipative strokes |
-| Otto COP → `ω_c/(ω_h−ω_c)` on full thermalisation | `2.0000` vs `2.0000` |
-| COP below Carnot bound | `2.00 < 3.33` |
-| Jarzynski equality, `⟨e^{−W/T}⟩ = e^{−ΔF/T}` | residual `4.4e-16` |
-| `⟨W⟩ ≥ ΔF` (second law) | holds |
-| Trajectory average reproduces master equation | agrees within `1.3σ` at N=6000 |
-| Pure dephasing produces exactly zero heat | `0.00000` |
-| Otto engine efficiency -> `1 - ω_low/ω_high` | `0.6000` vs `0.6000` |
-| Invalid input raises `QThermoError` rather than returning a number | 6 cases |
-| Sweep locates an interior optimum | passes |
-| Ergotropy zero for Gibbs states, equal to the gap for an inversion | passes |
-| Ergotropy non-negative over random states | passes |
-| Power/efficiency front trades one against the other | passes |
-| Inconsistent bath temperature warns instead of silently returning σ < 0 | passes |
+| Trap | What happens | What `qthermo` does |
+|---|---|---|
+| Local master equation on coupled sites | Heat can flow cold → hot; σ < 0 (Levy & Kosloff 2014) | Warns on σ < 0; `model.compare()` runs local vs global side by side; bare-Hamiltonian accounting with explicit boundary work (De Chiara et al. 2018) |
+| Non-unique steady state | Identical qubits on one bath, dark states, conserved quantities: "the" steady state doesn't exist | Detected from the conditioning of the linear solve; raises unless you give an initial state, then returns the state it actually relaxes to |
+| Baths that respect a symmetry of H | e.g. σx couplings on an Ising medium conserve parity; isochores never thermalise and the "efficiency" describes a different machine | `otto_cycle` refuses and says which symmetry-breaking coupling to use |
+| Level crossings in an interacting Otto engine | Energy-rank pairing of levels gives the wrong quasi-static cycle | `ideal_otto` follows adiabatic continuation along the actual drive |
+| Degenerate levels + flat spectral density | The zero-frequency channel has an undefined rate; thermalisation silently takes 1000× longer | Warns; `relaxation_time()` exposes the time scale; `otto_cycle` checks τ_iso against it |
+| Global ME and local currents | The secular steady state is diagonal in H, so every bond current i⟨[V,h_i]⟩ is identically zero | `heat_flow_map` says so instead of printing zeros |
+| Reaction-coordinate truncation | Strong coupling displaces the RC; too few levels gives unconverged currents | `rc_convergence()` reports the change between truncations |
+| Temperature inconsistent with the channel | σ < 0 from a mislabelled bath | Warning naming the likely cause |
+| Invalid input | Non-Hermitian H, unnormalised ρ, wrong dimensions | `QThermoError` naming the violated requirement, never a LinAlg traceback |
 
-Run them with `python tests/test_physics.py`.
+## What it does
 
-The first-law residual is at machine precision by construction: heat and work
-are accumulated with a midpoint split chosen so that `Q + W = dU` exactly at
-every integration step, which makes the residual a test of the solver rather
-than of the discretisation scheme.
-
-## Engines and refrigerators are the same code
-
-Nothing in `qthermo` knows what a refrigerator is. A cycle is a sequence of
-strokes; whether it consumes work to move heat or absorbs heat to produce work
-follows from the parameters, not from a different code path.
-
-```
-python examples/otto_refrigerator.py   # COP 2.0000, ideal Otto COP 2.0000
-python examples/heat_engine.py         # efficiency 0.6000, ideal Otto 0.6000
-```
-
-## Failing loudly
-
-Physical requirements are checked on input, with errors that name the violated
-requirement rather than surfacing a linear-algebra traceback:
-
-```python
->>> qt.evolve(2 * rho, H, [], 1.0)
-QThermoError: initial state has trace 2.000000, not 1.
-              Normalise it with rho / np.trace(rho).
-
->>> Stroke("s", H, 1.0, [], temperature=1.0)
-QThermoError: stroke 's' has a temperature but no collapse operators.
-              A stroke with no bath exchanges no heat, so its entropy
-              production is not defined by a bath temperature.
-```
-
-Non-Hermitian Hamiltonians, negative durations, dimension mismatches between
-state and collapse operators, non-positive states, and zero bath temperatures
-are all rejected at the boundary.
+| Area | Entry points | Validated against |
+|---|---|---|
+| **Stroke machines** (Otto, arbitrary cycles) | `Stroke`, `Cycle`, `limit_cycle` | Otto COP/efficiency limits; first law to 1e-16 by construction |
+| **Interacting working media** | `ideal_otto`, `otto_cycle`, `resolve_stroke` | Exact quasi-static limit (simulation agrees to 1e-8); coupling-enhanced efficiency (Thomas & Johal 2011) |
+| **Continuous machines** | `analyze`, `steady_state`, `models.*` | LPS fridge COP = ω_c/ω_h exactly; SSDB maser η = 1 − ω_c/ω_h; Carnot bounds |
+| **Bath models** | `davies_bath`, `local_bath`, `instantaneous_bath` | Gibbs fixed point for random H to 1e-16; Levy–Kosloff violation reproduced and resolved |
+| **Where the heat goes** | `heat_flow_map`, `plot_machine`, virtual temperatures, concurrence, negativity | Site balances close to 1e-17; Werner-state entanglement threshold |
+| **Fluctuations** | `current_statistics`, `scaled_cgf` | Exact vs tilted-generator vs independent classical FCS (1e-10); Gallavotti–Cohen symmetry to 1e-15; TUR holds for all classical machines, violated by the maser as published |
+| **Strong coupling** | `reaction_coordinate_model`, `mean_force_state` | O(λ²) weak-coupling limit; Cresser–Anders ultrastrong limit; heat-current turnover |
+| **Information** | `landauer_erasure`, `geodesic_schedule`, `thermodynamic_length` | → T ln 2; excess ∝ 1/τ matching slow-driving theory to <1%; geodesic attains L²/τ |
+| **Trajectories** | `unravel`, `jarzynski_tpm` | Trajectory mean reproduces master equation; Jarzynski to 1e-16 |
+| **Optimisation** | `sweep`, `scan_2d`, `pareto_front` | Interior optimum located; sequential vs joint tuning |
 
 ## Figures
 
-`python examples/full_demo.py` runs the whole workflow and writes all four
-figures to `examples/figures/`.
+Each comes from one script in `examples/`, and each script prints the numbers
+behind its figure.
 
 <table>
 <tr>
-<td width="50%"><img src="examples/figures/cycle_diagram.png" alt="cycle diagram"></td>
-<td width="50%"><img src="examples/figures/sweep.png" alt="parameter sweep"></td>
+<td width="50%"><img src="examples/figures/local_vs_global.png" alt="local vs global master equation"></td>
+<td width="50%"><img src="examples/figures/tur.png" alt="TUR violation in the maser"></td>
 </tr>
 <tr>
-<td><b>The cycle.</b> Energy gap against population — the quantum P–V diagram.
-Isochores vertical, driven strokes horizontal; the enclosed area is the work.</td>
-<td><b>Optimisation.</b> Figure of merit against a swept parameter, with the
-optimum and how robust it is.</td>
+<td><b>When the local master equation breaks</b> (<code>local_vs_global.py</code>).
+Past g ≈ 0.55 the local model moves heat from cold to hot. The global model
+never violates the second law, and counting boundary work repairs the local
+bookkeeping but not its currents.</td>
+<td><b>Beyond any classical machine</b> (<code>uncertainty_relation.py</code>).
+The maser's power fluctuates less than the TUR allows any classical Markov
+process to at the same dissipation. The result is computed exactly, with no
+sampling.</td>
 </tr>
 <tr>
-<td width="50%"><img src="examples/figures/scan.png" alt="joint scan"></td>
-<td width="50%"><img src="examples/figures/distribution.png" alt="trajectory distribution"></td>
+<td width="50%"><img src="examples/figures/strong_coupling.png" alt="strong coupling turnover"></td>
+<td width="50%"><img src="examples/figures/landauer.png" alt="finite-time Landauer erasure"></td>
 </tr>
 <tr>
-<td><b>Joint scan.</b> The same metric over two parameters at once, showing both
-the joint optimum and the one sequential tuning would find.</td>
-<td><b>Reliability.</b> Heat arrives in discrete quanta, so a run absorbs one,
-emits one, or nothing. The average falls between the peaks — a value no single
-run produces.</td>
+<td><b>What weak coupling misses</b> (<code>strong_coupling.py</code>).
+The heat current peaks and falls, where weak-coupling theory predicts λ²
+growth forever. The equilibrium state moves from Gibbs to the ultrastrong limit.</td>
+<td><b>The price of forgetting</b> (<code>landauer.py</code>). The excess
+dissipation of erasing a bit depends on the protocol. The geodesic ramp
+reaches the thermodynamic-length bound L²/τ, 65% below a linear ramp.</td>
+</tr>
+<tr>
+<td width="50%"><img src="examples/figures/coupled_otto.png" alt="coupled Otto engine"></td>
+<td width="50%"><img src="examples/figures/spin_chain.png" alt="spin chain heat transport"></td>
+</tr>
+<tr>
+<td><b>Interacting working medium</b> (<code>coupled_otto.py</code>). Heisenberg
+coupling lifts a two-qubit Otto engine above 1 − B_c/B_h. The finite-time
+simulation (dots) matches the exact quasi-static limit (line).</td>
+<td><b>Transport through a chain</b> (<code>absorption_refrigerator.py</code>).
+The same current crosses every bond, and virtual temperatures fall
+monotonically from the hot end to the cold end.</td>
 </tr>
 </table>
 
-Plotting needs matplotlib, an optional dependency; the numerical API does not
-require it.
+## Verification
 
-## Ergotropy
+```bash
+python -m qthermo.benchmarks     # computed value next to the published / analytic one
+python -m pytest                 # 114 tests
+```
 
-How much of a state's energy is actually useful? Ergotropy is the most work a
-cyclic unitary can extract, and it is exactly zero for a thermal state at any
-temperature — a Gibbs state is already passive, so nothing can be taken from it
-without a second bath.
+Every benchmark is a number fixed independently of this code: a closed-form
+limit, an exact identity, or a published bound or violation. A failure means
+the physics is wrong, not that an interface changed. CI runs both on every
+push.
+
+```
+[continuous machines]
+ok  3-qubit absorption fridge COP (local ME, tight coupling)         0.333333     0.333333  ==
+      w_c/w_h; Linden, Popescu & Skrzypczyk, PRL 105, 130401 (2010)
+ok  three-level maser efficiency                                     0.666667     0.666667  ==
+      1 - w_c/w_h; Scovil & Schulz-DuBois, PRL 2, 262 (1959)
+ok  local ME, detuned XX qubits: heat current from hot bath       -0.00044776            0  <=
+      < 0, i.e. cold -> hot; Levy & Kosloff, EPL 107, 20004 (2014)
+[fluctuations]
+ok  TUR ratio, three-level maser power (coherent drive)               1.96697            2  <=
+      < 2 possible; Kalaee, Wacker & Potts, PRE 104, L012103 (2021)
+ok  Gallavotti-Cohen symmetry of heat FCS, 3-qubit chain          1.84228e-15            0  ==
+[information]
+ok  geodesic erasure protocol: excess heat x tau                     0.890737     0.886534  ==
+      = L^2 (thermodynamic length); Scandi & Perarnau-Llobet, Quantum 3, 197 (2019)
+...
+26/26 passed in 10.0 s
+```
+
+The exact definitions of every computed quantity (sign conventions, which
+energy operator defines heat under local baths, rate conventions of the
+spectral densities, the FCS formulas) are in [docs/physics.md](docs/physics.md).
+
+## Stroke machines and trajectories
+
+The original core is still here and unchanged: a cycle is a list of strokes,
+and whether it is a fridge or an engine follows from the parameters.
 
 ```python
-qt.ergotropy(qt.thermal_state(H, 1.0), H)   # 0.0, at any temperature
-qt.ergotropy(excited_state, H)              # the full energy gap
+H_cold, H_hot = qt.qubit_hamiltonian(1.0), qt.qubit_hamiltonian(1.5)
+ramp = lambda a, b, tau: (lambda t: qt.qubit_hamiltonian(a + (t/tau)*(b-a)))
+
+cycle = qt.Cycle([
+    qt.Stroke("cold_iso", H_cold, 12.0, qt.thermal_bath(1.0, 1.0, 1.0), temperature=1.0),
+    qt.Stroke("compress", ramp(1.0, 1.5, 0.02), 0.02),
+    qt.Stroke("hot_iso",  H_hot,  12.0, qt.thermal_bath(1.0, 1.5, 1.3), temperature=1.3),
+    qt.Stroke("expand",   ramp(1.5, 1.0, 0.02), 0.02),
+])
+result, passes, converged = cycle.limit_cycle(qt.thermal_state(H_cold, 1.0))
+result.cop(("cold_iso",))
+
+ensemble = qt.unravel(cycle, result.strokes[-1].rho_final, trajectories=6000)
+ensemble.probability_of("cold_iso", lambda q: q <= 0)   # ~0.5: half the runs cool nothing
 ```
 
-## Power against efficiency
+Heat and work use the midpoint Alicki split, which satisfies `dU = Q + W` to
+machine precision at every step. That makes the first-law residual a test of
+the solver rather than of the discretisation. Strokes also accept `Bath`
+objects, including several at once and baths that follow a driven Hamiltonian
+(`instantaneous_bath`), and then report heat per bath. See
+`examples/full_demo.py` for sweeps, joint scans, Pareto fronts and trajectory
+distributions.
 
-Run a machine infinitely slowly and it reaches its best efficiency while
-delivering no power. Run it fast and the reverse. Neither endpoint is where you
-operate, so the trade-off curve is what gets reported.
+## Scope and limitations
 
-```python
-from qthermo.analysis import pareto_front
+- **Markovian** master equations (Lindblad form). Non-Markovian and
+  strong-coupling effects enter through the reaction-coordinate mapping, which
+  is exact for a single-peaked (Brownian) spectral density and approximate
+  otherwise. No HEOM, no Redfield (non-GKLS) equations.
+- **Lamb shifts are neglected** in the Davies construction.
+- **Size:** dense or sparse matrices, no tensor networks. Global-bath steady
+  states run to a few hundred levels (the 200-level RC model takes ~20 s);
+  current fluctuations use dense superoperators and suit a few dozen levels.
+- **Periodically driven continuous machines** are covered only in the rotating
+  frame (the maser model); there is no Floquet master equation.
+- Simulation only. Nothing here has been checked against hardware data.
 
-front = pareto_front(build_cycle, np.linspace(2.0, 30.0, 12), ("cold_iso",))
-front.knee()     # the parameter maximising power x COP
-print(front.report())
-```
+## Feedback wanted
 
-## Sweeps and joint scans
+This is being shared with researchers in quantum thermodynamics to find out
+what is actually useful. The most valuable replies are specific: *"I would
+use this if it did X"*, *"this number disagrees with Ref. Y"*, *"the local/global
+check would have saved me a week"*. Please open an issue.
 
-Finding where a machine performs best means running the same cycle many times
-with one thing changed. That loop is rewritten by hand in essentially every
-paper reporting an optimised quantum thermal machine.
+## Units and conventions
 
-```python
-from qthermo.analysis import sweep, scan_2d
-
-result = sweep(build_cycle, np.linspace(1.1, 2.6, 16),
-               lambda r, c: r.figure_of_merit(("cold_iso",), c.duration))
-result.optimum()            # (2.30, 3.945e-03)
-result.improvement_over(1.5)  # +62.7 %
-result.sensitivity()          # fraction of the range within 5% of optimum
-```
-
-`sensitivity` answers a question that matters for hardware: a knife-edge
-optimum will not survive parameter drift on a real device, while a wide
-plateau will. The sweep report states this in words.
-
-`scan_2d` searches two parameters jointly and can compare that against the
-sequential procedure everyone actually uses -- tune one, fix it, tune the next:
-
-```python
-scan.optimum()             # joint search over the full grid
-scan.sequential_optimum()  # tune-one-then-the-other
-scan.sequential_gap()      # +0.00 % for the single-qubit Otto refrigerator
-```
-
-For this system the gap is zero: sequential tuning finds the joint optimum.
-That is a result rather than a disappointment. Sequential optimisation is
-standard practice because it is cheap, and it is usually assumed to be safe
-rather than checked -- the nested loop that checks it is tedious to write by
-hand, and is one call here.
-
-## Noise channels
-
-`python examples/channel_comparison.py`
-
-```
-channel                            Q          dS   |coherence|   dP(excited)
-----------------------------------------------------------------------------
-amplitude damping           -0.51877    -0.04225       0.15727      -0.51877
-pure dephasing               0.00000     0.27175       0.07066       0.00000
-bit flip                    -0.11972     0.26296       0.17548      -0.11972
-thermal bath (T=0.8)        -0.40343     0.17801       0.08272      -0.40343
-```
-
-Pure dephasing exchanges no energy: it destroys coherence while leaving
-populations untouched, so it is structurally invisible to any heat-based
-observable while still producing entropy. This is why `qthermo` reports
-entropy production alongside heat rather than treating heat as the whole
-thermodynamic story.
-
-## Limitations
-
-- Single-qubit working media. Multi-qubit systems are supported by the solver
-  but untested and unvalidated.
-- Markovian, weak-coupling baths only. No non-Markovian dynamics, no HEOM.
-- Dense matrices, so this will not scale past a handful of qubits.
-- The Jarzynski check uses the two-point measurement protocol on a closed
-  driven system, which is exact, rather than an open-system fluctuation
-  theorem.
-- Simulation only. Nothing here has been run on hardware.
-
-## Roadmap
-
-1. Multi-qubit working media, with per-qubit resolution of heat and entropy
-   production rather than system totals.
-2. Non-Markovian baths.
-3. Validation against published results in the thermodynamics-of-error-
-   correction literature.
-
-## Units
-
-`ħ = k_B = 1`. Energies and temperatures share units; `β = 1/T`.
+`ħ = k_B = 1`. `Q > 0` and `J > 0` mean energy flowing **into** the system;
+`W > 0` means work done **on** it. `qubit_hamiltonian(ω) = −(ω/2)σ_z`, so
+|1⟩ is the excited state.
 
 ## References
 
-The quantities implemented here are standard; the package does not introduce
-new physics.
-
-- Alicki, *J. Phys. A* **12**, L103 (1979) — the heat/work split for driven
-  open systems.
-- Spohn, *J. Math. Phys.* **19**, 1227 (1978) — non-negativity of entropy
-  production.
-- Jarzynski, *Phys. Rev. Lett.* **78**, 2690 (1997); Tasaki, arXiv:cond-mat/0009244
-  (2000) — the equality and its quantum two-point-measurement form.
-- Kosloff & Rezek, *Entropy* **19**, 136 (2017) — the quantum Otto cycle.
+Implemented quantities are standard; the package does not introduce new
+physics. Each benchmark cites its source (run `python -m qthermo.benchmarks`).
+Main ones: Alicki (1979) heat/work split; Spohn (1978) entropy production;
+Davies (1974) weak-coupling generator; Levy & Kosloff, EPL 107, 20004 (2014);
+De Chiara et al., NJP 20, 113024 (2018); Linden, Popescu & Skrzypczyk, PRL 105,
+130401 (2010); Brunner et al., PRE 85, 051117 (2012); Scovil & Schulz-DuBois,
+PRL 2, 262 (1959); Barato & Seifert, PRL 114, 158101 (2015); Kalaee, Wacker &
+Potts, PRE 104, L012103 (2021); Landi et al., PRX Quantum 5, 020201 (2024);
+Strasberg et al., NJP 18, 073007 (2016); Cresser & Anders, PRL 127, 250601
+(2021); Scandi & Perarnau-Llobet, Quantum 3, 197 (2019); Thomas & Johal, PRE
+83, 031135 (2011); Jarzynski, PRL 78, 2690 (1997).
 
 ## License
 

@@ -4,9 +4,10 @@ Python package (`qthermo/`, ~76K) giving thermodynamic bookkeeping — heat, wor
 entropy production, COP, ergotropy — for open quantum systems evolved with a
 Lindblad master equation. Sits on top of numpy/scipy; QuTiP is optional
 (anything with `.full()` is accepted as a state/Hamiltonian). Public API surface
-is re-exported flat from `qthermo/__init__.py`. 17 physics tests in
-`tests/test_physics.py`. Entry points for a human: `examples/full_demo.py`
-runs the whole workflow; `README.md` has the pitch and validation table.
+is re-exported flat from `qthermo/__init__.py`. Tests in `tests/` (pytest,
+~115); literature benchmarks via `python -m qthermo.benchmarks`. Entry points
+for a human: `README.md` (pitch, traps table, figures), `docs/physics.md`
+(exact definitions), one script per figure in `examples/`.
 
 ## Read before working on:
 - modules/core.md — energy, entropy, ergotropy, thermal states (`core.py`)
@@ -17,6 +18,18 @@ runs the whole workflow; `README.md` has the pitch and validation table.
 - modules/analysis.md — sweeps, 2D scans, Pareto fronts (`analysis.py`)
 - modules/plotting.md — lazily-imported matplotlib figures (`plotting.py`)
 - modules/validation.md — input checks, `QThermoError` (`validation.py`)
+- modules/baths.md — Bath, davies_bath (global), local_bath, instantaneous_bath (`baths.py`)
+- modules/steady.md — steady states, heat currents, local vs global (`steady.py`)
+- modules/models.md — canonical machines as `Model` objects (`models.py`)
+- modules/network.md — site-resolved flows, virtual temperatures, entanglement (`network.py`)
+- modules/fluctuations.md — exact FCS, TUR/KUR (`fluctuations.py`)
+- modules/strong_coupling.md — reaction coordinates (`strong_coupling.py`)
+- modules/information.md — finite-time Landauer, geodesic protocols (`information.py`)
+- modules/engines.md — interacting Otto engines (`engines.py`)
+- modules/benchmarks.md — the benchmark registry (`benchmarks.py`)
+- decisions/eigenbasis-storage.md — why Davies ops live sparse in the eigenbasis
+- gotchas/local-master-equation.md, gotchas/secular-blind-currents.md,
+  gotchas/degenerate-zero-frequency.md, gotchas/symmetry-blocked-thermalisation.md
 - decisions/heat-work-split.md — why the midpoint split makes the first law exact
 - decisions/qutip-optional.md — how QuTiP stays an optional dependency
 - decisions/qubit-hamiltonian-sign.md — the sign flip in `qubit_hamiltonian`

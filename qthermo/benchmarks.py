@@ -100,6 +100,10 @@ def run_benchmarks(quick: bool = False, group: str | None = None,
     _load_all()
     selected = [b for b in REGISTRY
                 if not (quick and b.slow) and (group is None or b.group == group)]
+    first_seen = {}
+    for b in REGISTRY:
+        first_seen.setdefault(b.group, len(first_seen))
+    selected.sort(key=lambda b: first_seen[b.group])      # stable within group
     outcomes = []
     current_group = None
     header = f"{'':4}{'benchmark':<60}{'qthermo':>13}{'reference':>13}  {'relation':<8}"

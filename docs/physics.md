@@ -1,0 +1,238 @@
+# What qthermo computes, exactly
+
+This page states every definition and convention behind the numbers the
+package reports, so a result can be checked against a paper, or a paper
+against a result, without reading the source. Units: `ħ = k_B = 1`.
+
+## Signs
+
+- `Q > 0`, `J_k > 0`: energy flows **into** the system (from bath `k`).
+- `W > 0`: work is done **on** the system.
+- `dU = Q + W`.
+- `qubit_hamiltonian(ω) = −(ω/2) σ_z`: |0⟩ is the ground state and |1⟩ the
+  excited state, at `+ω/2`.
+- `sigma_minus = |0⟩⟨1|` lowers the energy.
+
+## Master equation
+
+    dρ/dt = −i[H, ρ] + Σ_L ( L ρ L† − ½{L†L, ρ} )
+
+Superoperators use column stacking, `vec(AρB) = (Bᵀ ⊗ A) vec(ρ)`, with
+`vec(ρ) = ρ.reshape(-1, order="F")`.
+
+## Heat and work along a trajectory of states (strokes)
+
+On a stored grid `t_k`, each step contributes
+
+    W_k = Tr[(H_{k+1} − H_k)(ρ_k + ρ_{k+1})/2]
+    Q_k = Tr[(H_k + H_{k+1})/2 (ρ_{k+1} − ρ_k)]
+
+This is the midpoint form of Alicki's split. `Q_k + W_k = ΔU_k` holds
+*exactly*, so `first_law_residual` measures solver error, not quadrature error.
+
+With several `Bath` objects on one stroke, bath `k`'s share is
+`∫ Tr[H(t) D_k(t)[ρ(t)]] dt` by the trapezoid rule on the same grid. The shares
+are then rescaled to sum to the exact total. The rescaling is `O(dt²)` and
+keeps the first law exact per stroke.
+
+Entropy production of a stroke:
+
+- one bath: `σ = ΔS − Q/T`;
+- several baths: `σ = ΔS − Σ_k Q_k/T_k`.
+
+## Baths
+
+### Global (Davies) baths — `davies_bath(H, A, T, ...)`
+
+`A` is the Hermitian system operator the bath couples through. It is split into
+Bohr components of the full `H`:
+
+    A(ω) = Σ_{ε'−ε=ω} P(ε) A P(ε')         (lowers the energy by ω)
+
+Degenerate levels and degenerate Bohr frequencies are grouped within
+`tol = 1e-9 × max(spectral width, 1)`. Each group becomes one jump operator
+`L_ω = √γ(ω) A(ω)` with
+
+    γ(ω)  = J(ω) (1 + n(ω))     ω > 0
+    γ(−ω) = J(ω) n(ω)           n(ω) = 1/(e^{ω/T} − 1)
+
+so `γ(−ω)/γ(ω) = e^{−ω/T}` exactly, and `e^{−H/T}/Z` is a fixed point.
+
+`J(ω)` is the **zero-temperature emission rate** at Bohr frequency ω, not a
+spectral density in any paper's normalisation:
+
+| spectrum | `J(ω)` | ω → 0 channel |
+|---|---|---|
+| `flat_spectrum(γ)` (default) | `γ` | rate undefined → off (warns if it connects distinct degenerate states) |
+| `ohmic_spectrum(γ, cutoff, reference)` | `γ (ω/reference) e^{−ω/cutoff}` | `γ T / reference` |
+
+With the flat spectrum on a single qubit coupled through σ_x, this is exactly
+`thermal_bath(γ, ω, T)`. The Lamb shift is neglected.
+
+Operators are stored sparse in the eigenbasis of `H`; `Bath.c_ops` is the dense
+computational-basis view, built on demand.
+
+### Local baths — `local_bath(h_site, A_site, T, site, dims)`
+
+The Davies construction on the isolated site's Hamiltonian, embedded in the
+full space. This is the local master equation. It is valid when inter-site
+couplings are small compared with the bath rates. Its fixed point is not the
+Gibbs state of the coupled `H`.
+
+### Time-dependent baths — `instantaneous_bath(H_of_t, A, T, ...)`
+
+The Davies bath of the instantaneous `H(t)` at each time. This is the adiabatic
+Markovian master equation (Albash et al., NJP 14, 123016 (2012)), valid for
+driving slow compared with the bath correlation time.
+
+## Steady states — `steady_state`, `analyze`
+
+`L ρ = 0` is solved with one row replaced by `Tr ρ = 1`. That matrix is
+singular exactly when the steady state is not unique. Its LAPACK
+reciprocal-condition estimate (or the sparse LU pivots) is the uniqueness
+test, with threshold `1e-13`. A non-unique steady state raises, unless
+`initial_state` is given; then the result is the spectral projection of
+`initial_state` onto the kernel of `L`.
+
+When every bath is a Davies bath of the same `H`, the solve runs in the
+eigenbasis of `H`, where the jump operators are sparse.
+
+### Heat currents and entropy production
+
+    J_k = Tr[E D_k(ρ_ss)]
+    σ̇  = −Σ_k J_k / T_k            (steady state: dS/dt = 0)
+
+`E` is the **energy operator**:
+
+- `analyze(H, baths)` uses `E = H`. Then `Σ_k J_k = 0` exactly for a static
+  `H`.
+- `Model.analyze()` uses `E = H0` (the non-interacting Hamiltonian) when the
+  baths are local. This is the thermodynamically consistent choice for the
+  local master equation (De Chiara et al., NJP 20, 113024 (2018)). The currents
+  then do not sum to zero; `work_rate = −Σ_k J_k` is the power needed to keep
+  the coupling switched on ("boundary work").
+- Rotating-frame models (the maser) use the bare `H0`. There
+  `power_output = Σ_k J_k` is the power delivered to the drive.
+
+Figures of merit:
+
+- refrigerator `cop(cold, source) = J_cold / J_source`;
+- absorption Carnot bound `(1 − T_r/T_h)/(T_r/T_c − 1)`;
+- engine `efficiency(hot) = power_output / J_hot`.
+
+`relaxation_time(H, baths)` is `1/gap` of the Liouvillian.
+`populations_only=True` uses the gap of the classical rate matrix
+`W_ij = Σ_L |⟨i|L|j⟩|²` between energy eigenstates.
+
+## Site-resolved flows — `heat_flow_map`
+
+For `H = Σ_i h_i + Σ_b V_b`:
+
+    J_{k→i} = Tr[h_i D_k(ρ)]               bath k into site i
+    J_{b→i} = i Tr(ρ [V_b, h_i])           interaction term b into site i
+    d⟨h_i⟩/dt = Σ_k J_{k→i} + Σ_b J_{b→i}   (= 0 in a steady state)
+
+The **bond current** of a two-site term is `(J_{b→j} − J_{b→i})/2`, from `i`
+to `j`. Energy stored in the bond cancels out of this.
+
+In a global-ME steady state `[H, ρ] = 0`, so every `J_{b→i}` vanishes
+identically and bath heat enters the interaction energy. This is flagged
+(`extras["secular_blind"]`), not hidden.
+
+The **virtual temperature** of a site is
+`T* = (e₁ − e₀) / ln(p₀/p₁)` from the two lowest eigenstates of `h_i` in the
+reduced state (Brunner et al., PRE 85, 051117 (2012)). It is negative for an
+inversion, and `inf` for equal populations.
+
+Correlation measures:
+
+- **Mutual information** `S_a + S_b − S_ab`.
+- **Negativity** `(‖ρ^{T_b}‖₁ − 1)/2`.
+- **Concurrence** Wootters' formula, for qubit pairs.
+
+## Fluctuations — `current_statistics`, `scaled_cgf`
+
+A counted current assigns each jump operator `L_j` a weight `ν_j`:
+
+- `"energy"`: the energy the jump deposits, `[E, L_j] = ν_j L_j`. It raises
+  if `L_j` is not an eigenoperator of `E`.
+- `"quanta"`: `±1`.
+- a number or list: the weights given.
+
+With `𝒥(ρ) = Σ_j ν_j L_j ρ L_j†`:
+
+    J = Tr[𝒥 ρ_ss]
+    D = Σ_j ν_j² Tr[L_j ρ_ss L_j†] − 2 Tr[𝒥 L^D 𝒥 ρ_ss]   = lim Var[N_t]/t
+    K = Σ_j Tr[L_j ρ_ss L_j†]                               (dynamical activity)
+
+`L^D` is the Drazin inverse, applied through a bordered linear system (Landi et
+al., PRX Quantum 5, 020201 (2024)). `D` is the full variance rate, not half of
+it.
+
+- **TUR ratio** `(D/J²) σ̇`: at least 2 for classical Markov jump processes.
+- **KUR ratio** `(D/J²) K`: at least 1 for classical Markov jump processes.
+- `scaled_cgf(s)`: the eigenvalue with largest real part of
+  `L + Σ_j (e^{s ν_j} − 1) L_j ⊗ L_j*`.
+
+## Strong coupling — `reaction_coordinate_model`
+
+    H_ext = H_S + Ω a†a + λ S (a + a†) + (λ²/Ω) S²
+
+The last term is the counterterm, on by default. The residual bath is a Davies
+bath on `H_ext` coupled through `a + a†`, with `ohmic_spectrum(κ,
+reference=Ω)`, so the RC decays at rate κ at its own frequency. Parameters are
+stated in this rate convention rather than through a spectral-density formula,
+whose prefactors differ between papers.
+
+`mean_force_state` is `Tr_RC e^{−H_ext/T}/Z`. `ultrastrong_limit_state` is
+`Σ_n P_n e^{−P_n H_S P_n/T} P_n / Z`, with `P_n` the eigenprojectors of `S`
+(Cresser & Anders 2021).
+
+## Erasure — `landauer_erasure`
+
+- **Qubit:** `H(t) = qubit_hamiltonian(ω(t))`, with `ω` ramped from `ω_min`
+  to `ω_max` (default `12T`).
+- **Bath:** Ohmic, through σ_x, with `reference = T`, following `H(t)`.
+- **Initial state:** maximally mixed.
+
+Reported quantities:
+
+- `heat_to_bath = −Q`.
+- `landauer = T (S_i − S_f)`.
+- `excess_heat = heat_to_bath − landauer = T σ ≥ 0`.
+
+Slow-driving friction:
+
+    ζ(ω) = β Var(∂_ω H) / Γ(ω),   Var = p(1−p),   Γ = γ (ω/T) coth(ω/2T)
+    excess ≈ (1/τ) ∫₀¹ ζ(ω(s)) ω'(s)² ds  ≥  L²/τ,   L = ∫ √ζ dω
+
+`geodesic_schedule` runs at constant `√ζ ω̇`, which attains `L²/τ`.
+
+## Otto cycles with interacting media — `ideal_otto`, `otto_cycle`
+
+`ideal_otto` gives the quasi-static cycle:
+
+- **Isochores:** full thermalisation.
+- **Driven strokes:** quantum adiabatic.
+- **Heat:** `Q_h = Σ_n E^h_n (p^h_n − p^c_n)`, where `n` pairs a level of
+  `H_hot` with its **adiabatic continuation** in `H_cold`. The pairing is found
+  by overlap-matching eigenvectors along the drive path. Pass
+  `follow_crossings=False` for energy-rank pairing.
+
+`otto_cycle` is the finite-time version:
+
+- **Baths:** one Davies bath per coupling operator.
+- **Drive:** a linear (or given) interpolation between `H_c` and `H_h`.
+- **Refusals:** it refuses baths that cannot thermalise, i.e. a non-unique
+  steady state.
+- **Warnings:** it warns if `τ_iso < 5 ×` the population relaxation time.
+
+## Trajectories — `unravel`
+
+Monte Carlo wave-function unravelling:
+
+- **Heat:** the energy change `⟨ψ|H|ψ⟩` across each jump.
+- **Work:** the first-law remainder on each trajectory.
+
+The ensemble mean reproduces the master-equation heat within statistical error
+(tested).
