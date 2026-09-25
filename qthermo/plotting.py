@@ -226,14 +226,34 @@ def plot_dashboard(result, cycle, sweep_result=None, ensemble=None,
 
 # --- multi-qubit machines ----------------------------------------------------
 
-def _layout(n_sites, bonds):
-    """Chain layout when the bonds form a path, polygon otherwise."""
+def _layout(n_sites, bonds, anchor: int = 0):
+    """Chain layout when the bonds form a path, polygon otherwise.
+
+    Polygons are rotated so ``anchor`` (the site of the first bath) sits on
+    the left: baths then extend sideways and the drawing is wide, like the
+    panel it goes in.
+    """
     path = set(tuple(sorted(b)) for b in bonds if len(b) == 2)
     is_chain = n_sites <= 2 or path == {(i, i + 1) for i in range(n_sites - 1)}
     if is_chain:
         return {i: np.array([1.4 * i, 0.0]) for i in range(n_sites)}, True
-    angles = np.pi / 2 + 2 * np.pi * np.arange(n_sites) / n_sites
+    angles = np.pi + 2 * np.pi * (np.arange(n_sites) - anchor) / n_sites
     return {i: 1.2 * np.array([np.cos(a), np.sin(a)]) for i, a in enumerate(angles)}, False
+
+
+def _fit_limits(ax, lo, hi):
+    """Limits covering [lo, hi] with the panel's own aspect ratio (round circles)."""
+    fig = ax.figure
+    box = ax.get_position()
+    panel = (box.height * fig.get_figheight()) / max(box.width * fig.get_figwidth(), 1e-9)
+    width, height = hi[0] - lo[0], hi[1] - lo[1]
+    centre = 0.5 * (lo + hi)
+    if height / width < panel:
+        height = width * panel
+    else:
+        width = height / panel
+    ax.set_xlim(centre[0] - width / 2, centre[0] + width / 2)
+    ax.set_ylim(centre[1] - height / 2, centre[1] + height / 2)
 
 
 def _arrow(ax, start, end, width, color, label=None, shrink=0.0, curve=0.0):
@@ -281,7 +301,9 @@ def plot_heat_network(flow_map, ax=None, cmap="coolwarm", show_values=True,
         _, ax = plt.subplots(figsize=(7, 5))
     n = fm.n_sites
     bonds = sorted({key for (key, _) in fm.term_to_site})
-    positions, chain = _layout(n, bonds or [(i, i + 1) for i in range(n - 1)])
+    first_sites = next(iter(fm.bath_sites.values()), ()) or (0,)
+    positions, chain = _layout(n, bonds or [(i, i + 1) for i in range(n - 1)],
+                               anchor=int(first_sites[0]))
 
     temps = [T for T in fm.bath_temperature.values() if T is not None]
     temps += [T for T in fm.virtual_temperature if np.isfinite(T) and T > 0]
@@ -305,7 +327,7 @@ def plot_heat_network(flow_map, ax=None, cmap="coolwarm", show_values=True,
             direction = anchor - centre
             norm_d = np.linalg.norm(direction)
             direction = direction / norm_d if norm_d > 1e-9 else np.array([0, 1.0])
-            offset = 1.5 * direction
+            offset = 1.6 * direction
         bath_pos[bath] = anchor + offset
 
     # Bath arrows carry the heat delivered to the sites, so each site's
@@ -397,12 +419,13 @@ def plot_heat_network(flow_map, ax=None, cmap="coolwarm", show_values=True,
 
     everything = np.array(list(positions.values()) + list(bath_pos.values()))
     lo, hi = everything.min(axis=0) - 0.6, everything.max(axis=0) + 0.6
-    ax.set_xlim(lo[0], hi[0])
-    ax.set_ylim(lo[1], hi[1])
-    ax.set_aspect("equal")
     ax.axis("off")
     sm = mpl.cm.ScalarMappable(norm=norm, cmap=colormap)
     plt.colorbar(sm, ax=ax, shrink=0.7, label="T (baths),  T* (sites)")
+    # limits last: the colorbar has taken its share of the panel by now
+    _fit_limits(ax, lo, hi)
+    ax.set_aspect("equal", adjustable="box")
+    ax.set_anchor("C")
     ax.set_title(title or "Heat flow", fontsize=10)
     if fm.extras.get("secular_blind"):
         ax.text(0.5, 0.01, "global ME: bond currents vanish identically "
@@ -450,7 +473,7 @@ def plot_machine(steady, figsize=(11, 8)):
 
     fm = heat_flow_map(steady)
     fig = plt.figure(figsize=figsize)
-    grid = fig.add_gridspec(2, 2, height_ratios=[1.35, 1.0])
+    grid = fig.add_gridspec(2, 2, height_ratios=[1.6, 1.0])
     plot_heat_network(fm, ax=fig.add_subplot(grid[0, :]),
                       title=getattr(steady.model, "description", None))
 
