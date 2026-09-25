@@ -113,6 +113,8 @@ QuTiP `Qobj`s are accepted anywhere an array is.
 | the least-dissipative schedule for *my* drive | `qt.optimal_schedule(H_of, baths_of, T, path)` |
 | a machine powered by a periodic drive | `qt.floquet_analyze(H_of_t, period, [qt.DrivenBath(...)])` |
 | analyse a quantum battery | `qt.batteries.ergotropy_split`, `locked_ergotropy`, `dicke_battery` |
+| use lab numbers (GHz, mK, µs, W) | `lab = qt.LabUnits(5.0)`; `lab.temperature(20)`, `lab.rate(1/T1)`, `lab.to_watts(J)` |
+| save results with provenance | `qt.save(result, "file.json")` |
 | confirm the package is right | `python -m qthermo.benchmarks` |
 
 ## What it catches
@@ -392,7 +394,9 @@ check would have saved me a week"*. Please open an issue.
 
 ## Units and conventions
 
-`ħ = k_B = 1`. `Q > 0` and `J > 0` mean energy flowing **into** the system;
+`ħ = k_B = 1`, with an energy unit of your choice; `qt.LabUnits(f0_GHz)`
+converts to and from GHz, mK, seconds and watts for the unit `E0 = h f0`.
+`Q > 0` and `J > 0` mean energy flowing **into** the system;
 `W > 0` means work done **on** it. `qubit_hamiltonian(ω) = −(ω/2)σ_z`, so
 |1⟩ is the excited state.
 
