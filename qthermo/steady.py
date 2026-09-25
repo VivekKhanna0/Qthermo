@@ -428,6 +428,20 @@ class SteadyState:
             raise QThermoError(f"no heat enters from {hot!r}")
         return self.power_output / j_hot
 
+    def mode(self, hot: str | None = None, cold: str | None = None) -> str:
+        """Operation mode of a two-bath machine (see :mod:`qthermo.modes`).
+
+        Bath names default to the model's ``roles``. Work is ``work_rate``,
+        so this is meaningful when currents are measured with an energy
+        operator that makes work explicit (local baths, rotating frames).
+        """
+        from .modes import classify
+        hot = hot or self.labels.get("hot")
+        cold = cold or self.labels.get("cold")
+        if hot is None or cold is None:
+            raise QThermoError("name the hot and cold baths: mode(hot=..., cold=...)")
+        return classify(self.work_rate, self.current(hot), self.current(cold))
+
     def is_cooling(self, cold: str) -> bool:
         return self.current(cold) > 0
 

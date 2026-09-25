@@ -134,7 +134,10 @@ def main():
     print(f"  trajectory mean                "
           f"{ensemble.series('cold_iso').mean():+.5f} "
           f"+/- {ensemble.standard_error('cold_iso'):.5f}")
-    print(f"\n  P(no heat drawn from cold bath) = {failure:.3f}")
+    exact = qt.cycle_counting(cycle, {"cold_iso": "quanta"},
+                              rho_start=result.strokes[-1].rho_final)
+    print(f"\n  P(no heat drawn from cold bath) = {failure:.3f} sampled, "
+          f"{exact.probability(lambda n: n <= 0):.4f} exact")
     print("  The machine cools on average and fails on most individual runs.")
     print()
     print("  The distribution is discrete: the qubit either absorbs one quantum")
@@ -142,7 +145,8 @@ def main():
     print("  master equation reports is a value no single run ever produces.")
 
     fig, ax = plt.subplots(figsize=(6, 4))
-    plot_distribution(ensemble, "cold_iso", cold_deterministic, ax=ax)
+    plot_distribution(ensemble, "cold_iso", cold_deterministic, ax=ax,
+                      exact=exact.distribution(4), quantum=OMEGA_COLD)
     fig.tight_layout()
     fig.savefig(FIGURES / "distribution.png", dpi=160)
     plt.close(fig)

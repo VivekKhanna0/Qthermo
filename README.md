@@ -136,7 +136,8 @@ print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
 | **Strong coupling** | `reaction_coordinate_model`, `mean_force_state` | O(λ²) weak-coupling limit; Cresser–Anders ultrastrong limit; heat-current turnover |
 | **Information** | `landauer_erasure`, `geodesic_schedule`, `thermodynamic_length` | → T ln 2; excess ∝ 1/τ matching slow-driving theory to <1%; geodesic attains L²/τ |
 | **Per-cycle statistics** | `cycle_counting` (exact), `unravel` (sampled) | Exact P(n) vs independent classical telegraph model (1e-12); vs trajectories; Jarzynski to 1e-16 |
-| **Optimisation** | `sweep`, `scan_2d`, `pareto_front` | Interior optimum located; sequential vs joint tuning |
+| **Operation modes** | `classify`, `mode_map`, `plot_mode_map`, `.mode()` on every result | Quasi-static qubit Otto boundary ω_c/ω_h = T_c/T_h reproduced exactly |
+| **Optimisation** | `sweep`, `scan_2d`, `pareto_front` (cycles *and* continuous models) | Interior optimum located; sequential vs joint tuning |
 
 ## Figures
 
@@ -181,6 +182,18 @@ simulation (dots) matches the exact quasi-static limit (line).</td>
 <td><b>Transport through a chain</b> (<code>absorption_refrigerator.py</code>).
 The same current crosses every bond, and virtual temperatures fall
 monotonically from the hot end to the cold end.</td>
+</tr>
+<tr>
+<td width="50%"><img src="examples/figures/operation_modes.png" alt="operation mode maps"></td>
+<td width="50%"><img src="examples/figures/distribution.png" alt="per-cycle heat distribution"></td>
+</tr>
+<tr>
+<td><b>Operation modes</b> (<code>operation_modes.py</code>). The quasi-static
+qubit Otto cycle splits exactly at ω_c/ω_h = T_c/T_h. Fast, non-commuting
+ramps (quantum friction) open up accelerator and heater regions.</td>
+<td><b>One cycle, not the average</b> (<code>full_demo.py</code>). Sampled
+quantum-jump trajectories against the exact counting-statistics distribution
+(diamonds). The master-equation mean is a value no single cycle produces.</td>
 </tr>
 </table>
 

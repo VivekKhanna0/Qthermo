@@ -105,6 +105,7 @@ from .baths import instantaneous_bath
 from .engines import OttoLimit, adiabatic_pairing, ideal_otto, otto_cycle
 from .audit import AuditReport, Finding, audit
 from .counting import CycleCounting, cycle_counting
+from .modes import MODES, classify, mode_map
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
 __version__ = "0.3.0"
@@ -114,7 +115,8 @@ def __getattr__(name):
     """Lazily expose plotting so matplotlib stays an optional dependency."""
     if name in ("plot_cycle", "plot_sweep", "plot_scan",
                 "plot_distribution", "plot_dashboard",
-                "plot_heat_network", "plot_correlations", "plot_machine"):
+                "plot_heat_network", "plot_correlations", "plot_machine",
+                "plot_mode_map"):
         from . import plotting
         return getattr(plotting, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -148,5 +150,6 @@ __all__ = [
     "ideal_otto", "otto_cycle", "OttoLimit", "adiabatic_pairing",
     "audit", "AuditReport", "Finding",
     "cycle_counting", "CycleCounting",
+    "classify", "mode_map", "MODES",
     "__version__",
 ]

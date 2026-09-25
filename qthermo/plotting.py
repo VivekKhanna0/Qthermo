@@ -23,6 +23,7 @@ __all__ = [
     "plot_heat_network",
     "plot_correlations",
     "plot_machine",
+    "plot_mode_map",
 ]
 
 
@@ -158,11 +159,17 @@ def plot_scan(scan_result, ax=None, log_x: bool = False, log_y: bool = False):
 
 
 def plot_distribution(ensemble, which: str, deterministic: float | None = None,
-                      ax=None, bins: int = 30):
+                      ax=None, bins: int = 30, exact: dict | None = None,
+                      quantum: float = 1.0):
     """Trajectory histogram with the master-equation mean marked.
 
     The point of the figure: the mean is one number, and the distribution
     around it is a different object entirely.
+
+    ``exact`` -- a ``{n: P(n)}`` dict from
+    :meth:`qthermo.counting.CycleCounting.distribution` -- overlays the exact
+    single-cycle distribution (as expected counts at ``n * quantum``) for
+    comparison with the sampled one.
     """
     plt = _require_matplotlib()
     if ax is None:
@@ -177,6 +184,11 @@ def plot_distribution(ensemble, which: str, deterministic: float | None = None,
                    label=f"master equation ({deterministic:+.4f})")
     ax.axvline(float(np.mean(data)), color="black", linestyle="--",
                linewidth=1.6, label=f"trajectory mean ({np.mean(data):+.4f})")
+    if exact is not None:
+        values = np.array([n * quantum for n, p in exact.items() if p > 1e-9])
+        expected = np.array([p * len(data) for p in exact.values() if p > 1e-9])
+        ax.plot(values, expected, "D", color="#E67E22", markersize=9,
+                markeredgecolor="black", zorder=6, label="exact (counting statistics)")
     ax.axvline(0.0, color="0.4", linewidth=1.0, linestyle=":")
 
     ax.set_xlabel(f"{which} per cycle (single trajectory)")
@@ -454,3 +466,29 @@ def plot_machine(steady, figsize=(11, 8)):
         plot_correlations(fm, ax=fig.add_subplot(grid[1, 1]))
     fig.tight_layout()
     return fig
+
+
+def plot_mode_map(scan_result, ax=None, log_x: bool = False, log_y: bool = False):
+    """Categorical map of operation modes from :func:`qthermo.modes.mode_map`."""
+    plt = _require_matplotlib()
+    import matplotlib as mpl
+    from .modes import MODES
+
+    if ax is None:
+        _, ax = plt.subplots(figsize=(6, 4.6))
+    colours = ["#1B4F72", "#2E86C1", "#F5B041", "#C0392B", "#D5D8DC", "#000000"]
+    cmap = mpl.colors.ListedColormap(colours)
+    norm = mpl.colors.BoundaryNorm(np.arange(len(MODES) + 1) - 0.5, len(MODES))
+    ax.pcolormesh(scan_result.x_values, scan_result.y_values, scan_result.grid,
+                  cmap=cmap, norm=norm, shading="nearest")
+    present = sorted({int(v) for v in np.unique(scan_result.grid[np.isfinite(scan_result.grid)])})
+    handles = [mpl.patches.Patch(color=colours[k], label=MODES[k]) for k in present]
+    ax.legend(handles=handles, fontsize=8, loc="best", framealpha=0.9)
+    if log_x:
+        ax.set_xscale("log")
+    if log_y:
+        ax.set_yscale("log")
+    ax.set_xlabel(scan_result.parameters[0])
+    ax.set_ylabel(scan_result.parameters[1])
+    ax.set_title("Operation mode", fontsize=10)
+    return ax

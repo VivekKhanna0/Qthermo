@@ -180,6 +180,12 @@ class CycleResult:
         """Power x COP -- the power/efficiency trade-off metric."""
         return self.cooling_power(cold_strokes, cycle_time) * self.cop(cold_strokes)
 
+    def mode(self, hot_strokes=("hot_iso",), cold_strokes=("cold_iso",)) -> str:
+        """Operation mode (see :mod:`qthermo.modes`) from net work and heats."""
+        from .modes import classify
+        return classify(self.net_work, self.heat_from(*hot_strokes),
+                        self.heat_from(*cold_strokes))
+
     @property
     def max_first_law_residual(self) -> float:
         return max(s.first_law_residual for s in self.strokes)

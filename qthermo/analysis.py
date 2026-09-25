@@ -167,6 +167,25 @@ class ScanResult:
         return 100.0 * (joint - sequential) / abs(sequential)
 
 
+def _run_machine(machine, initial_state):
+    """Evaluate whatever a builder returned.
+
+    * ``Cycle`` -> its limit cycle;
+    * ``Model`` (continuous machine) -> its steady state;
+    * anything else (e.g. an ``OttoLimit``) is used as the result itself.
+    Returns ``(result, machine)`` for the metric.
+    """
+    from .cycle import Cycle
+    from .models import Model
+    if isinstance(machine, Cycle):
+        state = initial_state if initial_state is not None else _default_initial_state(machine)
+        result, _, _ = machine.limit_cycle(state)
+        return result
+    if isinstance(machine, Model):
+        return machine.analyze()
+    return machine
+
+
 def sweep(build_cycle, values, metric, initial_state=None,
           parameter: str = "parameter", metric_name: str = "metric",
           on_error: str = "nan") -> SweepResult:
@@ -175,12 +194,15 @@ def sweep(build_cycle, values, metric, initial_state=None,
     Parameters
     ----------
     build_cycle : callable
-        ``build_cycle(value) -> Cycle``.
+        ``build_cycle(value)`` returning a ``Cycle`` (run to its limit cycle),
+        a ``Model`` (solved for its steady state), or any result object such
+        as an ``OttoLimit``, which is passed to ``metric`` as is.
     values : sequence
         Parameter values to try.
     metric : callable
-        ``metric(cycle_result, cycle) -> float``, e.g.
-        ``lambda r, c: r.cop(("cold_iso",))``.
+        ``metric(result, machine) -> float``, e.g.
+        ``lambda r, c: r.cop(("cold_iso",))`` for cycles or
+        ``lambda r, m: r.current("cold")`` for models.
     on_error : {"nan", "raise"}
         What to do when a point fails -- for instance when a cycle stops
         operating as a refrigerator partway through the range, which is
@@ -191,9 +213,8 @@ def sweep(build_cycle, values, metric, initial_state=None,
 
     for index, value in enumerate(values):
         cycle = build_cycle(value)
-        state = initial_state if initial_state is not None else _default_initial_state(cycle)
         try:
-            result, _, _ = cycle.limit_cycle(state)
+            result = _run_machine(cycle, initial_state)
             metrics[index] = metric(result, cycle)
         except Exception:
             if on_error == "raise":
@@ -208,8 +229,9 @@ def scan_2d(build_cycle, x_values, y_values, metric, initial_state=None,
             metric_name: str = "metric", on_error: str = "nan") -> ScanResult:
     """Joint scan over two parameters.
 
-    ``build_cycle(x, y) -> Cycle``. Cost is the product of the two grid sizes,
-    so keep grids modest.
+    ``build_cycle(x, y)`` returns a ``Cycle``, ``Model`` or result object, as
+    for :func:`sweep`. Cost is the product of the two grid sizes, so keep grids
+    modest.
     """
     x_values = np.asarray(list(x_values), dtype=float)
     y_values = np.asarray(list(y_values), dtype=float)
@@ -218,10 +240,8 @@ def scan_2d(build_cycle, x_values, y_values, metric, initial_state=None,
     for row, y in enumerate(y_values):
         for column, x in enumerate(x_values):
             cycle = build_cycle(x, y)
-            state = (initial_state if initial_state is not None
-                     else _default_initial_state(cycle))
             try:
-                result, _, _ = cycle.limit_cycle(state)
+                result = _run_machine(cycle, initial_state)
                 grid[row, column] = metric(result, cycle)
             except Exception:
                 if on_error == "raise":

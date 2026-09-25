@@ -67,6 +67,12 @@ class OttoLimit:
         return self.heat_cold / self.work
 
     @property
+    def mode(self) -> str:
+        """``engine``, ``refrigerator``, ``accelerator``, ``heater`` ..."""
+        from .modes import classify
+        return classify(self.work, self.heat_hot, self.heat_cold)
+
+    @property
     def carnot_efficiency(self) -> float:
         return 1.0 - self.T_cold / self.T_hot
 
