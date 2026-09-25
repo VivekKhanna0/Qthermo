@@ -111,3 +111,16 @@ def test_counting_unknown_bath_raises():
     H, baths = qubit_two_baths()
     with pytest.raises(qt.QThermoError, match="unknown bath"):
         current_statistics(H, {"nope": "energy"}, baths=baths)
+
+
+def test_gallavotti_cohen_fluctuation_symmetry():
+    """theta(s) = theta(-s - (1/T_c - 1/T_h)) for heat drawn from the hot bath.
+
+    The steady-state fluctuation theorem: probabilities of transferring +Q
+    and -Q differ by exp((1/T_c - 1/T_h) Q) at long times.
+    """
+    m = qt.models.spin_chain(3, T_left=2.0, T_right=0.5, master_equation="global")
+    affinity = 1 / 0.5 - 1 / 2.0
+    s = np.array([-1.0, -0.4, 0.2, 0.9])
+    assert np.allclose(scaled_cgf(m, {"left": "energy"}, s),
+                       scaled_cgf(m, {"left": "energy"}, -s - affinity), atol=1e-12)

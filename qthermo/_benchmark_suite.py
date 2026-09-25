@@ -317,3 +317,16 @@ def _heisenberg_otto():
 def _heisenberg_enhancement():
     from .engines import ideal_otto
     return ideal_otto(_heisenberg(2, 0.2), _heisenberg(4, 0.2), 0.5, 4.0).efficiency, 0.5
+
+
+@benchmark("Gallavotti-Cohen symmetry of heat FCS, 3-qubit chain: max|theta(s)-theta(-s-A)|",
+           "= 0 exactly; Gallavotti & Cohen PRL 74, 2694 (1995); Esposito, Harbola & Mukamel RMP 81, 1665 (2009)",
+           tolerance=1e-12, group="fluctuations")
+def _gallavotti_cohen():
+    from .fluctuations import scaled_cgf
+    from .models import spin_chain
+    m = spin_chain(3, T_left=2.0, T_right=0.5, master_equation="global")
+    s = np.linspace(-1.0, 0.9, 7)
+    A = 1 / 0.5 - 1 / 2.0
+    return np.max(np.abs(scaled_cgf(m, {"left": "energy"}, s)
+                         - scaled_cgf(m, {"left": "energy"}, -s - A))), 0.0
