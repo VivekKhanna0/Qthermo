@@ -17,6 +17,7 @@ of them on every push.
 | [`multiqubit_cycle.py`](multiqubit_cycle.py) | Inside a two-qubit engine: energy, temperature, entanglement stroke by stroke | ~5 s |
 | [`operation_modes.py`](operation_modes.py) | Where is a cycle an engine, fridge, accelerator or heater? | ~60 s |
 | [`transient_cooling.py`](transient_cooling.py) | Switching a refrigerator on: transient cooling below the steady state | ~10 s |
+| [`thermal_transistor.py`](thermal_transistor.py) | Thermal amplification in three zz-coupled qubits; Onsager checks | ~5 s |
 | [`driven_machine.py`](driven_machine.py) | A periodically driven qubit as engine and refrigerator (Floquet) | ~5 s |
 | [`transport_scaling.py`](transport_scaling.py) | Ballistic vs graded heat transport through spin chains | ~15 s |
 | [`quantum_battery.py`](quantum_battery.py) | Collective charging advantage; coherent and locked ergotropy | ~20 s |

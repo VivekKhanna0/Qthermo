@@ -226,7 +226,10 @@ def _solve_steady(H, ops, initial_state, check_unique, tol):
                 f"the steady state is not unique{count}. Something is "
                 "conserved -- identical sites coupled to a common bath, a site "
                 "with no path to any bath, or bath couplings that all commute "
-                "with a symmetry of H. Pass initial_state=... to get the "
+                "with a symmetry of H. It can also be numerical: transition "
+                "energies many times larger than a bath temperature give "
+                "Boltzmann factors below machine precision, disconnecting "
+                "levels in floating point. Pass initial_state=... to get the "
                 "steady state that state relaxes to.")
         return _relaxed_state(L if dense else L.toarray(), initial_state, dim, tol)
 

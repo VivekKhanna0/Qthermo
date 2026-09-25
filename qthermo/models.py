@@ -30,6 +30,7 @@ __all__ = [
     "three_level_maser",
     "spin_chain",
     "two_qubit_heat_valve",
+    "thermal_transistor",
 ]
 
 _MASTER_EQUATIONS = ("local", "global")
@@ -347,3 +348,32 @@ def two_qubit_heat_valve(omega_1: float = 1.0, omega_2: float = 0.6,
         description=f"two qubits, {coupling} coupling, between two baths",
         rebuild=rebuild,
     )
+
+
+def thermal_transistor(T_L: float = 1.0, T_M: float = 0.2, T_R: float = 0.2,
+                       omega: float = 1.0, zz_left: float = 1.0, zz_right: float = 0.7,
+                       gamma: float = 0.001) -> Model:
+    """Three qubits with Ising (zz) couplings as a quantum thermal transistor.
+
+    Joulain, Drevillon, Ezzahri & Ordonez-Miranda, PRL 116, 200601 (2016).
+    Qubits L (emitter), M (base) and R (collector) each touch their own bath
+    through ``sigma_x``; the zz couplings make every transition energy
+    depend on the neighbours' states, so the base temperature steers the
+    heat flowing from L to R. The gain is
+    ``Model.analyze`` + :func:`qthermo.response`'s ``amplification("M", "R")``.
+    Global (Davies) baths; the Hamiltonian is diagonal, so the model is exact
+    in the secular sense. ``zz_left != zz_right`` avoids degenerate transitions.
+    """
+    dims = [2, 2, 2]
+    local_H = [qubit_hamiltonian(omega) for _ in range(3)]
+    H0 = sum(embed(h, i, dims) for i, h in enumerate(local_H))
+    terms = {(0, 1): zz_left * embed(sigma_z, 0, dims) @ embed(sigma_z, 1, dims),
+             (1, 2): zz_right * embed(sigma_z, 1, dims) @ embed(sigma_z, 2, dims)}
+    H = H0 + sum(terms.values())
+    baths = [davies_bath(H, embed(sigma_x, i, dims), T, gamma=gamma, name=name, sites=(i,))
+             for i, (name, T) in enumerate((("L", T_L), ("M", T_M), ("R", T_R)))]
+    return Model(H=H, H0=H0, dims=dims, local_H=local_H, baths=baths,
+                 master_equation="global", roles={"hot": "L", "cold": "R"},
+                 site_names=["L", "M", "R"], bonds=[(0, 1), (1, 2)],
+                 interaction_terms=terms,
+                 description="three-qubit quantum thermal transistor (zz-coupled)")

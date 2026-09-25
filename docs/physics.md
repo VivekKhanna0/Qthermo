@@ -270,6 +270,26 @@ summed over all terms, including `a = b`, `q ≠ 0`. The power delivered to the
 drive is `P = Σ_k J_k`. A warning is issued when distinct transition
 frequencies lie closer than `1e-3 ×` the largest rate.
 
+## Linear response — `response`
+
+`G_kl = ∂J_k/∂T_l` is computed by central differences with step `h·T_l`
+(`h = 1e-4`), each point a full steady-state solve. The Onsager matrix is
+`L_kl = T_l² G_kl`, i.e. the response to the affinities `x_l = 1/T − 1/T_l`.
+
+- `reciprocity_residual`: `max|L − Lᵀ| / max|L|`, meaningful at equilibrium.
+- `conservation_residual`: `max_l |Σ_k G_kl| / max|G|`.
+- `coupling(a, b)`: `L_ab / √(L_aa L_bb)`.
+- `amplification(control, output)`: `G_oc / G_cc`, the change in the output
+  current per change in the control current when only `T_control` is varied.
+
+## Transients — `transient`
+
+The master equation is integrated from `ρ₀` with `evolve` (DOP853,
+`rtol = 1e-9`). At every output time the currents `J_k(t) = Tr[E D_k(ρ(t))]`
+are recorded. The cumulative heats are trapezoid integrals of `J_k(t)`, so
+`energy_balance_residual` measures quadrature accuracy.
+`product_thermal_state` is `⊗_i e^{−h_i/T_i}/Z_i`.
+
 ## Exact counting statistics of cycles — `cycle_counting`
 
 Each jump operator `L_j` of a counted stroke gets a weight `ν_j`: `+1` if it

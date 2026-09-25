@@ -465,3 +465,38 @@ def _single_shot():
     run = transient(m, product_thermal_state(m.local_H, [1.0, 6.0, 1.5]),
                     duration=4000.0, steps=800)
     return run.minimum_temperature(0)[0] - heat_flow_map(m.analyze()).virtual_temperature[0], 0.0
+
+
+# --- linear response ---------------------------------------------------------
+
+@benchmark("Onsager reciprocity, 3-terminal zz transistor at equilibrium: max|L-L^T|/max|L|",
+           "= 0 (time-reversal symmetry); Onsager, Phys. Rev. 37, 405 (1931)",
+           tolerance=1e-6, group="linear response")
+def _onsager():
+    from .models import thermal_transistor
+    from .response import response
+    r = response(lambda T: thermal_transistor(T_L=T["L"], T_M=T["M"], T_R=T["R"]),
+                 {"L": 0.5, "M": 0.5, "R": 0.5})
+    return r.reciprocity_residual, 0.0
+
+
+@benchmark("local absorption fridge: Kedem-Caplan coupling |q_ch|",
+           "= 1 (tight coupling); Kedem & Caplan, Trans. Faraday Soc. 61, 1897 (1965)",
+           tolerance=1e-6, group="linear response")
+def _tight_coupling():
+    from .models import absorption_refrigerator
+    from .response import response
+    r = response(lambda T: absorption_refrigerator(T_c=T["cold"], T_h=T["hot"], T_r=T["room"]),
+                 {"cold": 1.0, "hot": 1.0, "room": 1.0})
+    return abs(r.coupling("cold", "hot")), 1.0
+
+
+@benchmark("zz thermal transistor gain |dJ_R/dJ_M| at T_M = 0.1",
+           "> 1 (amplification); Joulain et al., PRL 116, 200601 (2016)",
+           kind="lower", tolerance=0.0, group="linear response")
+def _transistor_gain():
+    from .models import thermal_transistor
+    from .response import response
+    r = response(lambda T: thermal_transistor(T_L=T["L"], T_M=T["M"], T_R=T["R"]),
+                 {"L": 1.0, "M": 0.1, "R": 0.2})
+    return abs(r.amplification("M", "R")), 1.0

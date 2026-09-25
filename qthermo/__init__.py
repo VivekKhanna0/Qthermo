@@ -114,6 +114,7 @@ from .export import export, load, save
 from .floquet import DrivenBath, FloquetSteadyState, floquet_analyze, floquet_states, window_spectrum
 from .units import BOLTZMANN, HBAR, PLANCK, LabUnits
 from .transient import TransientResult, product_thermal_state, transient
+from .response import ThermalResponse, response
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
 __version__ = "0.4.0"
@@ -165,5 +166,6 @@ __all__ = [
     "floquet_analyze", "floquet_states", "DrivenBath", "FloquetSteadyState",
     "window_spectrum", "LabUnits", "PLANCK", "HBAR", "BOLTZMANN",
     "transient", "TransientResult", "product_thermal_state",
+    "response", "ThermalResponse",
     "__version__",
 ]

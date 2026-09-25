@@ -113,6 +113,7 @@ QuTiP `Qobj`s are accepted anywhere an array is.
 | the least-dissipative schedule for *my* drive | `qt.optimal_schedule(H_of, baths_of, T, path)` |
 | a machine powered by a periodic drive | `qt.floquet_analyze(H_of_t, period, [qt.DrivenBath(...)])` |
 | what happens after switching a machine on | `qt.transient(model, rho0, duration)` |
+| conductance matrix, Onsager check, transistor gain | `qt.response(build, {bath: T})` |
 | analyse a quantum battery | `qt.batteries.ergotropy_split`, `locked_ergotropy`, `dicke_battery` |
 | use lab numbers (GHz, mK, µs, W) | `lab = qt.LabUnits(5.0)`; `lab.temperature(20)`, `lab.rate(1/T1)`, `lab.to_watts(J)` |
 | save results with provenance | `qt.save(result, "file.json")` |
@@ -167,6 +168,8 @@ print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
 | **Strong coupling** | `reaction_coordinate_model`, `mean_force_state` | O(λ²) weak-coupling limit; Cresser–Anders ultrastrong limit; heat-current turnover |
 | **Information** | `landauer_erasure`, `geodesic_schedule`, `thermodynamic_length` | → T ln 2; excess ∝ 1/τ matching slow-driving theory to <1%; geodesic attains L²/τ |
 | **Periodically driven machines** | `floquet_analyze`, `DrivenBath`, `window_spectrum` | Undriven limit = static Davies (1e-14); Bessel sideband weights; tight-coupling efficiency and COP of the modulated-qubit machine to 1e-7; σ ≥ 0 for random drives |
+| **Linear response** | `response` → conductance, Onsager matrix, coupling `q`, `amplification` | Onsager reciprocity to 1e-9; tight coupling \|q\| = 1 for the local fridge; thermal-transistor gain 4.8 |
+| **Transients** | `transient`, `product_thermal_state` | Long-time limit = steady state; cumulative heat balances ΔE; single-shot cooling below steady state |
 | **Optimal protocols** (any H(λ), any thermalising bath) | `friction`, `optimal_schedule`, `excess_work` | Friction metric reproduces the erasure closed form to 1e-11; non-commuting drive: simulated excess within 0.2% of L²/τ, 34% below a linear ramp |
 | **Quantum batteries** | `batteries.ergotropy_split`, `locked_ergotropy`, `asymptotic_ergotropy`, `dicke_battery`, `collective_advantage` | Dicke √N power advantage (exponent 0.499); locked ergotropy of a Bell pair; activation of passive states |
 | **Per-cycle statistics** | `cycle_counting` (exact), `unravel` (sampled) | Exact P(n) vs independent classical telegraph model (1e-12); vs trajectories; Jarzynski to 1e-16 |
@@ -248,6 +251,16 @@ The slow-driving friction metric for a qubit whose field grows and tilts (a
 non-commuting drive). The constant-speed schedule dissipates 34% less than a
 linear ramp, and full finite-time simulations (dots) land on the predictions
 (dashed).</td>
+</tr>
+<tr>
+<td colspan="2"><img src="examples/figures/thermal_transistor.png" alt="quantum thermal transistor"></td>
+</tr>
+<tr>
+<td colspan="2"><b>A quantum thermal transistor</b> (<code>thermal_transistor.py</code>).
+Three zz-coupled qubits (Joulain et al. 2016). At low base temperature, each
+extra unit of heat into the base sends up to 4.8 units to the collector. The
+same <code>response</code> call returns the full conductance matrix, which is
+checked for Onsager symmetry and the second law at equilibrium.</td>
 </tr>
 <tr>
 <td colspan="2"><img src="examples/figures/transient_cooling.png" alt="transient cooling of an absorption refrigerator"></td>
