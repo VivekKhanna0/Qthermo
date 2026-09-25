@@ -103,10 +103,11 @@ print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
 [info]  relaxation time: 2.72 (populations)
 [ok]    steady state: unique
 [ok]    second law: entropy production rate 1.937e-02 >= 0
+[ok]    internal currents: site energy balances close to 3.5e-17
 [ok]    uncertainty relation: 'hot': TUR ratio 9.626 >= 2
 [ok]    uncertainty relation: 'cold': TUR ratio 5.117 >= 2
 ------------------------------------------------------------
-1 error(s), 0 warning(s), 5 other checks
+1 error(s), 0 warning(s), 6 other checks
 ```
 
 | Trap | What happens | What `qthermo` does |
