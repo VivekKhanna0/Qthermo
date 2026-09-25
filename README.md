@@ -234,13 +234,25 @@ quantum batteries.
 
 ```bash
 python -m qthermo.benchmarks     # computed value next to the published / analytic one
-python -m pytest                 # 120+ tests
+python -m pytest                 # ~235 tests, ~90 s
 ```
 
 Every benchmark is a number fixed independently of this code: a closed-form
 limit, an exact identity, or a published bound or violation. A failure means
-the physics is wrong, not that an interface changed. CI runs both on every
-push.
+the physics is wrong, not that an interface changed. The test suite adds
+randomised property tests. They draw random Hamiltonians, couplings, baths and
+temperatures (qubits, qutrits, mixed dimensions, degenerate spectra) and
+assert what must always hold:
+
+- the steady state is a valid, stationary density matrix;
+- energy is conserved and σ ≥ 0;
+- a single bath gives the Gibbs state;
+- counting statistics reproduce the currents;
+- site flows close;
+- ergotropy is non-negative and zero for passive states.
+
+It is also cross-checked against QuTiP. CI runs all of this, and every
+example, on every push.
 
 ```
 [continuous machines]
