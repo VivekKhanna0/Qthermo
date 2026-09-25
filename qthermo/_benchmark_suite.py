@@ -452,3 +452,16 @@ def _xx_ballistic():
     J = [spin_chain(n, J=0.5, delta=0.0, T_left=5.0, T_right=0.5, gamma=0.5,
                     master_equation="local").analyze().current("left") for n in (2, 6)]
     return J[1] / J[0], 1.0
+
+
+@benchmark("absorption fridge switched on (g/gamma = 25): min T*_cold - steady T*_cold",
+           "< 0: transient 'single-shot' cooling; Mitchison et al., NJP 17, 115013 (2015)",
+           kind="upper", tolerance=0.0, group="continuous machines")
+def _single_shot():
+    from .models import absorption_refrigerator
+    from .network import heat_flow_map
+    from .transient import product_thermal_state, transient
+    m = absorption_refrigerator(g=0.05, gamma=0.002, T_c=1.0, T_h=6.0, T_r=1.5)
+    run = transient(m, product_thermal_state(m.local_H, [1.0, 6.0, 1.5]),
+                    duration=4000.0, steps=800)
+    return run.minimum_temperature(0)[0] - heat_flow_map(m.analyze()).virtual_temperature[0], 0.0

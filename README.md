@@ -112,6 +112,7 @@ QuTiP `Qobj`s are accepted anywhere an array is.
 | cost of erasure and the optimal protocol | `qt.landauer_erasure`, `qt.geodesic_schedule` |
 | the least-dissipative schedule for *my* drive | `qt.optimal_schedule(H_of, baths_of, T, path)` |
 | a machine powered by a periodic drive | `qt.floquet_analyze(H_of_t, period, [qt.DrivenBath(...)])` |
+| what happens after switching a machine on | `qt.transient(model, rho0, duration)` |
 | analyse a quantum battery | `qt.batteries.ergotropy_split`, `locked_ergotropy`, `dicke_battery` |
 | use lab numbers (GHz, mK, µs, W) | `lab = qt.LabUnits(5.0)`; `lab.temperature(20)`, `lab.rate(1/T1)`, `lab.to_watts(J)` |
 | save results with provenance | `qt.save(result, "file.json")` |
@@ -247,6 +248,15 @@ The slow-driving friction metric for a qubit whose field grows and tilts (a
 non-commuting drive). The constant-speed schedule dissipates 34% less than a
 linear ramp, and full finite-time simulations (dots) land on the predictions
 (dashed).</td>
+</tr>
+<tr>
+<td colspan="2"><img src="examples/figures/transient_cooling.png" alt="transient cooling of an absorption refrigerator"></td>
+</tr>
+<tr>
+<td colspan="2"><b>Colder than the steady state</b> (<code>transient_cooling.py</code>).
+Switch the three-qubit fridge on. With coherent internal coupling (g ≫ γ), the
+cold qubit dips to T* = 0.75 before settling at 0.84. This is single-shot
+cooling (Mitchison et al. 2015), and it disappears in the overdamped regime.</td>
 </tr>
 <tr>
 <td colspan="2"><img src="examples/figures/transport_scaling.png" alt="heat transport scaling in spin chains"></td>
