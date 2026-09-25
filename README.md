@@ -12,10 +12,12 @@ hundred levels. It also tells you when the model you wrote down cannot mean
 what you think it means.
 
 ```bash
-git clone https://github.com/VivekKhanna0/Qthermo.git && cd Qthermo
-pip install -e ".[plot]"          # numpy, scipy; matplotlib for figures
+pip install "qthermo[plot] @ git+https://github.com/VivekKhanna0/Qthermo"   # numpy, scipy, matplotlib
 python -m qthermo.benchmarks      # 41 checks against published results, ~40 s
 ```
+
+or, to run the examples and tests, `git clone` the repository and
+`pip install -e ".[dev]"`.
 
 **Highlights**, each reproduced by the package and checked in CI:
 
@@ -356,6 +358,26 @@ what is actually useful. The most valuable replies are specific: *"I would
 use this if it did X"*, *"this number disagrees with Ref. Y"*, *"the local/global
 check would have saved me a week"*. Please open an issue.
 
+Some concrete open questions where input from people who work on these
+problems would help:
+
+- **The regime between local and global.** With J ≈ γ, neither master
+  equation is controlled; the tutorial's thermal diode even changes direction
+  between them. A naive "unified" (partially secular) construction was
+  prototyped and gave erratic currents, so it was not shipped. Which
+  construction would you trust here, and against which exact benchmark?
+- **Collective baths.** N qubits coupled to one bath through their total
+  spin carry more heat per qubit than N independent ones. At the temperatures
+  tried, the gain saturates near 2.6× instead of growing with N. Is there a
+  published benchmark for superradiant heat transport to validate against
+  before this becomes a feature?
+- **Strong coupling beyond one reaction coordinate.** Is the RC mapping
+  enough for the systems you study, or is a HEOM or TEMPO backend the
+  missing piece?
+- **Hardware.** Which experimental platform (superconducting circuits,
+  trapped ions, NV centres, quantum dots) should the models and `LabUnits`
+  presets target first?
+
 ## Units and conventions
 
 `ħ = k_B = 1`, with an energy unit of your choice; `qt.LabUnits(f0_GHz)`
@@ -377,6 +399,12 @@ Potts, PRE 104, L012103 (2021); Landi et al., PRX Quantum 5, 020201 (2024);
 Strasberg et al., NJP 18, 073007 (2016); Cresser & Anders, PRL 127, 250601
 (2021); Scandi & Perarnau-Llobet, Quantum 3, 197 (2019); Thomas & Johal, PRE
 83, 031135 (2011); Jarzynski, PRL 78, 2690 (1997).
+
+## Citing
+
+See [`CITATION.cff`](CITATION.cff) (GitHub shows a "Cite this repository"
+button). Please also cite the original papers for the physics you use; each
+benchmark names its source.
 
 ## License
 

@@ -1,0 +1,16 @@
+cff-version: 1.2.0
+message: "If you use qthermo in your research, please cite it as below."
+title: "qthermo: thermodynamic analysis of open quantum systems"
+type: software
+authors:
+  - family-names: Khanna
+    given-names: Vivek
+version: 0.5.0
+license: MIT
+repository-code: "https://github.com/VivekKhanna0/Qthermo"
+keywords:
+  - quantum thermodynamics
+  - open quantum systems
+  - quantum thermal machines
+  - master equations
+  - full counting statistics
