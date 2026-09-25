@@ -111,6 +111,7 @@ QuTiP `Qobj`s are accepted anywhere an array is.
 | go beyond weak coupling | `qt.reaction_coordinate_model`, `qt.rc_convergence` |
 | cost of erasure and the optimal protocol | `qt.landauer_erasure`, `qt.geodesic_schedule` |
 | the least-dissipative schedule for *my* drive | `qt.optimal_schedule(H_of, baths_of, T, path)` |
+| a machine powered by a periodic drive | `qt.floquet_analyze(H_of_t, period, [qt.DrivenBath(...)])` |
 | analyse a quantum battery | `qt.batteries.ergotropy_split`, `locked_ergotropy`, `dicke_battery` |
 | confirm the package is right | `python -m qthermo.benchmarks` |
 
@@ -162,6 +163,7 @@ print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
 | **Fluctuations** | `current_statistics`, `scaled_cgf` | Exact vs tilted-generator vs independent classical FCS (1e-10); Gallavotti–Cohen symmetry to 1e-15; TUR holds for all classical machines, violated by the maser as published |
 | **Strong coupling** | `reaction_coordinate_model`, `mean_force_state` | O(λ²) weak-coupling limit; Cresser–Anders ultrastrong limit; heat-current turnover |
 | **Information** | `landauer_erasure`, `geodesic_schedule`, `thermodynamic_length` | → T ln 2; excess ∝ 1/τ matching slow-driving theory to <1%; geodesic attains L²/τ |
+| **Periodically driven machines** | `floquet_analyze`, `DrivenBath`, `window_spectrum` | Undriven limit = static Davies (1e-14); Bessel sideband weights; tight-coupling efficiency and COP of the modulated-qubit machine to 1e-7; σ ≥ 0 for random drives |
 | **Optimal protocols** (any H(λ), any thermalising bath) | `friction`, `optimal_schedule`, `excess_work` | Friction metric reproduces the erasure closed form to 1e-11; non-commuting drive: simulated excess within 0.2% of L²/τ, 34% below a linear ramp |
 | **Quantum batteries** | `batteries.ergotropy_split`, `locked_ergotropy`, `asymptotic_ergotropy`, `dicke_battery`, `collective_advantage` | Dicke √N power advantage (exponent 0.499); locked ergotropy of a Bell pair; activation of passive states |
 | **Per-cycle statistics** | `cycle_counting` (exact), `unravel` (sampled) | Exact P(n) vs independent classical telegraph model (1e-12); vs trajectories; Jarzynski to 1e-16 |
@@ -243,6 +245,17 @@ The slow-driving friction metric for a qubit whose field grows and tilts (a
 non-commuting drive). The constant-speed schedule dissipates 34% less than a
 linear ramp, and full finite-time simulations (dots) land on the predictions
 (dashed).</td>
+</tr>
+<tr>
+<td colspan="2"><img src="examples/figures/driven_machine.png" alt="Floquet heat machine"></td>
+</tr>
+<tr>
+<td colspan="2"><b>A periodically driven machine</b> (<code>driven_machine.py</code>). A
+frequency-modulated qubit with spectrally filtered baths, solved with the
+Floquet–Markov master equation. It runs as an engine with η = 1 − (ω₀−Ω)/(ω₀+Ω)
+and switches to a refrigerator with COP (ω₀−Ω)/2Ω exactly where predicted.
+Power follows the first Bessel sideband until a higher one opens a
+short-circuit channel.</td>
 </tr>
 <tr>
 <td colspan="2"><img src="examples/figures/quantum_battery.png" alt="Dicke quantum battery"></td>
@@ -355,8 +368,9 @@ distributions.
 - **Size:** dense or sparse matrices, no tensor networks. Global-bath steady
   states run to a few hundred levels (the 200-level RC model takes ~20 s);
   current fluctuations use dense superoperators and suit a few dozen levels.
-- **Periodically driven continuous machines** are covered only in the rotating
-  frame (the maser model); there is no Floquet master equation.
+- **Periodically driven machines** use the full-secular Floquet–Markov
+  equation. It is valid when quasienergy differences are resolved on the scale
+  of the bath rates, and warns when they are not.
 - Simulation only. Nothing here has been checked against hardware data.
 
 ## Feedback wanted

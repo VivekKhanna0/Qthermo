@@ -400,3 +400,45 @@ def _geodesic_general():
     tau = 120.0
     sim = excess_work(sched.hamiltonian(H_of, tau), baths_of, T, tau, steps=1200)["dissipation"]
     return sim / sched.minimum_excess(tau), 1.0
+
+
+# --- periodically driven machines ---------------------------------------------
+
+def _floquet_machine(T_h, T_c, lam=0.6):
+    from .floquet import DrivenBath, floquet_analyze, window_spectrum
+    w0, om = 3.0, 1.0
+    H = lambda t: qubit_hamiltonian(w0 + lam * np.sin(om * t))
+    return floquet_analyze(H, 2 * np.pi / om, [
+        DrivenBath("hot", sigma_x, T_h, spectrum=window_spectrum(0.05, w0 + om, 0.8)),
+        DrivenBath("cold", sigma_x, T_c, spectrum=window_spectrum(0.05, w0 - om, 0.8))],
+        n_time=128)
+
+
+@benchmark("modulated qubit engine (Floquet): efficiency",
+           "1 - (w0-W)/(w0+W) by tight coupling; Gelbwaser-Klimovsky, Alicki & Kurizki, PRE 87, 012140 (2013)",
+           tolerance=1e-6, group="driven machines")
+def _floquet_engine():
+    return _floquet_machine(4.0, 0.5).efficiency("hot"), 0.5
+
+
+@benchmark("modulated qubit refrigerator (Floquet): COP",
+           "(w0-W)/(2W) by tight coupling; same reference",
+           tolerance=1e-5, group="driven machines")
+def _floquet_fridge():
+    return _floquet_machine(1.2, 1.0).cop("cold"), 1.0
+
+
+@benchmark("undriven limit of the Floquet master equation: |J_floquet - J_davies|",
+           "= 0: reduces to the static Davies generator",
+           tolerance=1e-12, group="driven machines")
+def _floquet_static():
+    from .baths import davies_bath
+    from .floquet import DrivenBath, floquet_analyze
+    from .steady import analyze
+    H = qubit_hamiltonian(1.3)
+    f = floquet_analyze(lambda t: H, 2 * np.pi / 5.0,
+                        [DrivenBath("hot", sigma_x, 2.0, gamma=0.3),
+                         DrivenBath("cold", sigma_x, 0.5, gamma=0.7)], n_time=64)
+    s = analyze(H, [davies_bath(H, sigma_x, 2.0, gamma=0.3, name="hot"),
+                    davies_bath(H, sigma_x, 0.5, gamma=0.7, name="cold")])
+    return abs(f.current("hot") - s.current("hot")), 0.0

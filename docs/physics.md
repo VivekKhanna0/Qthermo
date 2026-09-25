@@ -243,6 +243,27 @@ reports `T σ`.
   steady state.
 - **Warnings:** it warns if `τ_iso < 5 ×` the population relaxation time.
 
+## Periodically driven machines — `floquet_analyze`
+
+The Floquet modes `|u_a(t)⟩` come from the one-period propagator. It is built
+as a product of midpoint exponentials: `n_time × substeps` slices. The
+quasienergies `ε_a = −arg(λ_a)/T_d` lie in `(−Ω/2, Ω/2]`.
+
+For each bath, `⟨u_a(t)|A|u_b(t)⟩` is sampled on `n_time` points and
+Fourier-transformed: `A_ab(q)` is the coefficient of `e^{+iqΩt}`. The
+transition `b → a` in sideband `q` hands the bath the energy
+`w = ε_b − ε_a − qΩ`, at rate `γ(w)|A_ab(q)|²` with the same `γ` as the
+Davies construction.
+
+The Floquet populations follow the Pauli rate equation built from the `a ≠ b`
+terms. The currents are
+
+    J_k = −Σ w γ_k(w) |A_ab(q)|² p_b
+
+summed over all terms, including `a = b`, `q ≠ 0`. The power delivered to the
+drive is `P = Σ_k J_k`. A warning is issued when distinct transition
+frequencies lie closer than `1e-3 ×` the largest rate.
+
 ## Exact counting statistics of cycles — `cycle_counting`
 
 Each jump operator `L_j` of a counted stroke gets a weight `ν_j`: `+1` if it
