@@ -159,9 +159,10 @@ def steady_state(H, baths=(), initial_state=None, check_unique: bool = True,
                 count = f" ({null_dim} independent stationary states)"
             raise QThermoError(
                 f"the steady state is not unique{count}. Something is "
-                "conserved -- often identical sites coupled to a common bath, "
-                "or a site with no path to any bath. Pass initial_state=... to "
-                "get the steady state that state relaxes to.")
+                "conserved -- identical sites coupled to a common bath, a site "
+                "with no path to any bath, or bath couplings that all commute "
+                "with a symmetry of H. Pass initial_state=... to get the "
+                "steady state that state relaxes to.")
         return _relaxed_state(L if dense else L.toarray(), initial_state, dim, tol)
 
     if singular:                   # uniqueness check disabled: best effort

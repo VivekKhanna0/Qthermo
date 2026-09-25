@@ -284,3 +284,36 @@ def _landauer_fast():
     from .information import landauer_erasure
     r = landauer_erasure(1.0, steps=800)
     return r.heat_to_bath, r.landauer
+
+
+# --- interacting working media -------------------------------------------------
+
+def _heisenberg(B, J):
+    from .subsystems import embed
+    from .channels import sigma_y, sigma_z
+    D = [2, 2]
+    return (-0.5 * B * (embed(sigma_z, 0, D) + embed(sigma_z, 1, D))
+            + J * sum(embed(s, 0, D) @ embed(s, 1, D) for s in (sigma_x, sigma_y, sigma_z)))
+
+
+@benchmark("2-qubit Heisenberg Otto: simulated vs quasi-static efficiency",
+           "exact population formula (ideal_otto); coupling-enhanced, Thomas & Johal PRE 83, 031135 (2011)",
+           tolerance=1e-6, group="interacting media")
+def _heisenberg_otto():
+    from .engines import ideal_otto, otto_cycle
+    from .subsystems import embed
+    D = [2, 2]
+    cycle = otto_cycle(_heisenberg(2, 0.2), _heisenberg(4, 0.2), 0.5, 4.0,
+                       [embed(sigma_x, 0, D), embed(sigma_x, 1, D)],
+                       tau_iso=30, tau_ramp=1.0)
+    result, _, _ = cycle.limit_cycle(np.eye(4) / 4)
+    return (result.efficiency(("hot_iso",)),
+            ideal_otto(_heisenberg(2, 0.2), _heisenberg(4, 0.2), 0.5, 4.0).efficiency)
+
+
+@benchmark("2-qubit Heisenberg Otto efficiency vs uncoupled 1 - B_c/B_h",
+           "> 0.5 for antiferromagnetic J; Thomas & Johal, PRE 83, 031135 (2011)",
+           kind="lower", tolerance=0.0, group="interacting media")
+def _heisenberg_enhancement():
+    from .engines import ideal_otto
+    return ideal_otto(_heisenberg(2, 0.2), _heisenberg(4, 0.2), 0.5, 4.0).efficiency, 0.5

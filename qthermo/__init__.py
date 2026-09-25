@@ -101,6 +101,7 @@ from .information import (
     thermodynamic_length,
 )
 from .baths import instantaneous_bath
+from .engines import OttoLimit, adiabatic_pairing, ideal_otto, otto_cycle
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
 __version__ = "0.3.0"
@@ -141,5 +142,6 @@ __all__ = [
     "rc_convergence",
     "landauer_erasure", "landauer_bound", "ErasureResult", "geodesic_schedule",
     "thermodynamic_length", "predicted_excess", "instantaneous_bath",
+    "ideal_otto", "otto_cycle", "OttoLimit", "adiabatic_pairing",
     "__version__",
 ]
