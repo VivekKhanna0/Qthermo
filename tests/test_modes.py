@@ -55,3 +55,9 @@ def test_sweep_accepts_continuous_models():
 def test_steady_state_mode_of_the_maser_is_engine():
     r = qt.models.three_level_maser().analyze()
     assert r.mode() == "engine"
+
+
+def test_sweep_report_flags_optimum_at_range_edge():
+    out = qt.sweep(lambda x: x, np.linspace(0, 1, 6), lambda r, m: r,
+                   parameter="x", metric_name="x")
+    assert "edge of the swept range" in out.report()

@@ -114,6 +114,12 @@ class SweepResult:
         lines.append("-" * 30)
         lines.append(f"optimum: {self.parameter} = {best_value:.4f}, "
                      f"{self.metric_name} = {best_metric:.5e}")
+        finite_values = self.values[np.isfinite(self.metrics)]
+        if best_value in (finite_values.min(), finite_values.max()):
+            lines.append("optimum lies at the edge of the swept range: the true "
+                         "optimum may be outside it -- extend the range before "
+                         "reading anything into sensitivity")
+            return "\n".join(lines)
         try:
             fraction = self.sensitivity()
             verdict = ("robust -- the metric barely depends on this parameter"

@@ -17,6 +17,11 @@ pip install -e ".[plot]"          # numpy, scipy; matplotlib for figures
 python -m qthermo.benchmarks      # 26 checks against published results, ~10 s
 ```
 
+**New here?** [`examples/tutorial.ipynb`](examples/tutorial.ipynb) takes one
+research question (a two-qubit thermal diode) from a Hamiltonian to publishable
+numbers, including the checks a referee would ask about. It renders on GitHub
+with all outputs.
+
 ## Thirty seconds
 
 ```python
@@ -86,6 +91,26 @@ flows  = qt.heat_flow_map(result, dims=dims, local_H=[h0, h1],
 for any Hamiltonian: coupled, degenerate, many-body. `local_bath` builds the
 local one. Both return the same `Bath` object, so every tool accepts either.
 QuTiP `Qobj`s are accepted anywhere an array is.
+
+## I want to...
+
+| ...do this | call |
+|---|---|
+| get currents, entropy production, COP/efficiency of a continuous machine | `qt.analyze(H, baths)` or `model.analyze()` |
+| check my model for known modelling mistakes | `qt.audit(model)` or `qt.audit(H, baths)` |
+| build baths for a coupled / many-body system | `qt.davies_bath` (global), `qt.local_bath` (local) |
+| know whether local vs global master equations matter | `model.compare()` |
+| see where heat flows inside a multi-qubit machine | `qt.heat_flow_map(steady)`, `qt.plot_machine(steady)` |
+| get the noise of a current and the TUR/KUR ratios | `qt.current_statistics(model, "bath")` |
+| simulate a stroke cycle and its limit cycle | `qt.Cycle([qt.Stroke(...), ...]).limit_cycle(rho0)` |
+| know the quasi-static limit of an interacting Otto engine | `qt.ideal_otto(H_c, H_h, T_c, T_h)` |
+| get the exact heat distribution of one cycle | `qt.cycle_counting(cycle, {"stroke": "quanta"})` |
+| map engine / fridge / heater / accelerator regions | `qt.mode_map(build, xs, ys)`, `qt.plot_mode_map` |
+| scan any machine over parameters | `qt.sweep`, `qt.scan_2d`, `qt.pareto_front` |
+| go beyond weak coupling | `qt.reaction_coordinate_model`, `qt.rc_convergence` |
+| cost of erasure and the optimal protocol | `qt.landauer_erasure`, `qt.geodesic_schedule` |
+| analyse a quantum battery | `qt.batteries.ergotropy_split`, `locked_ergotropy`, `dicke_battery` |
+| confirm the package is right | `python -m qthermo.benchmarks` |
 
 ## What it catches
 
