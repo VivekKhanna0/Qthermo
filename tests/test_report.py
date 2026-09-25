@@ -11,7 +11,7 @@ def test_report_contains_audit_currents_and_data(tmp_path):
     page = qt.report(qt.models.two_qubit_heat_valve(master_equation="local"), path)
     assert path.read_text() == page
     for fragment in ("<h2>Audit</h2>", "local vs global", "<h2>Heat currents</h2>",
-                     "data:image/png;base64", "boundary work", '"currents"'):
+                     "data:image/png;base64", "boundary work", "&quot;currents&quot;"):
         assert fragment in page
 
 
