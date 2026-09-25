@@ -193,7 +193,7 @@ def _require_thermalization(H, baths, label):
 
 def otto_cycle(H_cold, H_hot, T_cold: float, T_hot: float, couplings,
                gamma: float = 0.5, tau_iso: float = 30.0, tau_ramp: float = 5.0,
-               steps: int = 300, ramp=None,
+               steps: int = 300, ramp=None, spectrum=None,
                check_thermalization: bool = True) -> Cycle:
     """Four-stroke Otto cycle for an arbitrary (multi-qubit) working medium.
 
@@ -217,6 +217,10 @@ def otto_cycle(H_cold, H_hot, T_cold: float, T_hot: float, couplings,
         friction.
     ramp : callable, optional
         ``ramp(s)`` mapping [0, 1] to [0, 1]; linear by default.
+    spectrum : callable, optional
+        Bath spectral function (see :func:`qthermo.baths.ohmic_spectrum`);
+        flat with rate ``gamma`` by default. Prefer an Ohmic spectrum when the
+        medium has exactly degenerate levels.
     check_thermalization : bool
         Refuse to build a cycle whose baths cannot bring the medium to its
         Gibbs state -- which happens whenever every coupling operator commutes
@@ -233,7 +237,8 @@ def otto_cycle(H_cold, H_hot, T_cold: float, T_hot: float, couplings,
         return lambda t: A + float(shape(t / tau_ramp)) * (B - A)
 
     def baths(H, T, label):
-        return [davies_bath(H, _as_matrix(X), T, gamma=gamma, name=f"{label}{k}")
+        return [davies_bath(H, _as_matrix(X), T, gamma=gamma, spectrum=spectrum,
+                            name=f"{label}{k}")
                 for k, X in enumerate(couplings)]
 
     if not couplings:
@@ -242,6 +247,18 @@ def otto_cycle(H_cold, H_hot, T_cold: float, T_hot: float, couplings,
     if check_thermalization:
         for label, H, bs in (("hot", H_h, hot_baths), ("cold", H_c, cold_baths)):
             _require_thermalization(H, bs, label)
+            if H.shape[0] <= 256:
+                from .steady import relaxation_time
+                t_relax = relaxation_time(H, bs, populations_only=True)
+                if tau_iso < 5.0 * t_relax:
+                    import warnings
+                    warnings.warn(
+                        f"the {label} isochore lasts {tau_iso:g} but energy "
+                        f"populations of the medium relax on a time scale of "
+                        f"{t_relax:.3g}: the working medium will not reach its "
+                        "Gibbs state, and the cycle will not approach the "
+                        "quasi-static limit. Lengthen tau_iso or raise gamma.",
+                        RuntimeWarning, stacklevel=2)
     return Cycle([
         Stroke("hot_iso", H_h, tau_iso, hot_baths, steps=steps),
         Stroke("expand", drive(H_h, H_c), tau_ramp, steps=steps),

@@ -325,6 +325,18 @@ def davies_bath(H, coupling, temperature: float, gamma: float = 1.0,
             if rate is None:
                 limit = getattr(J, "zero_frequency", None)
                 rate = limit(temperature) if callable(limit) else 0.0
+                coo = A_omega.tocoo()
+                if rate == 0.0 and np.any(coo.row != coo.col):
+                    import warnings
+                    warnings.warn(
+                        f"bath {name!r}: the coupling connects different "
+                        "eigenstates of the same energy (degenerate levels), "
+                        "but this spectrum has no finite zero-frequency rate, so "
+                        "that channel is switched off. Population then moves "
+                        "between the degenerate states only via other levels, "
+                        "which can make thermalisation arbitrarily slow. Pass "
+                        "zero_frequency_rate=..., or use ohmic_spectrum(), whose "
+                        "w -> 0 limit is finite.", RuntimeWarning, stacklevel=2)
         elif omega > 0:
             rate = float(J(omega)) * (1.0 + mean_occupation(omega, temperature))
         else:

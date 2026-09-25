@@ -41,6 +41,7 @@ __all__ = [
     "compare_master_equations",
     "MasterEquationComparison",
     "trace_distance",
+    "relaxation_time",
 ]
 
 
@@ -236,6 +237,42 @@ def _solve_steady(H, ops, initial_state, check_unique, tol):
     rho = _unvec(v, dim)
     rho = 0.5 * (rho + rho.conj().T)
     return rho / np.trace(rho).real
+
+
+def relaxation_time(H, baths, populations_only: bool = False) -> float:
+    """Slowest relaxation time ``1 / gap`` of the dynamics.
+
+    The gap is the smallest non-zero decay rate. A stroke or simulation much
+    shorter than this has not thermalised, whatever its bath temperature says.
+
+    With ``populations_only=True`` the gap is that of the classical rate
+    matrix between energy eigenstates, ``W_ij = sum_L |<i|L|j>|^2`` -- the
+    time for energy populations (hence heat and work) to settle, ignoring
+    coherences between degenerate levels, which can relax much more slowly
+    without affecting any energetic quantity. Cheap at any size. Otherwise
+    the full Liouvillian spectrum is used (dense; up to a few dozen levels).
+
+    Returns ``inf`` when there is more than one stationary state.
+    """
+    H = check_hermitian(_as_matrix(H))
+    if populations_only:
+        _, V = np.linalg.eigh(H)
+        W = np.zeros(H.shape, dtype=float)
+        for op in _collect_c_ops(baths):
+            op = op.toarray() if sp.issparse(op) else op
+            W += np.abs(V.conj().T @ op @ V) ** 2
+        np.fill_diagonal(W, 0.0)
+        generator = W - np.diag(W.sum(axis=0))
+        rates = np.sort(np.abs(np.linalg.eigvals(generator).real))
+    else:
+        L = liouvillian(H, baths, sparse=False)
+        rates = np.sort(np.abs(np.linalg.eigvals(L).real))
+    scale = max(rates[-1], 1e-300)
+    stationary = int(np.sum(rates <= 1e-10 * scale))
+    nonzero = rates[rates > 1e-10 * scale]
+    if stationary > 1 or not len(nonzero):
+        return float("inf")
+    return float(1.0 / nonzero[0])
 
 
 def _density(ops, dim) -> float:

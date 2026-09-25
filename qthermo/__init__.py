@@ -54,6 +54,7 @@ from .steady import (
     analyze,
     compare_master_equations,
     liouvillian,
+    relaxation_time,
     steady_state,
     trace_distance,
 )
@@ -132,7 +133,7 @@ __all__ = [
     "resolve_stroke", "resolve_cycle", "SiteResult", "SubsystemResult",
     "Bath", "davies_bath", "local_bath", "bohr_decomposition", "dissipator",
     "flat_spectrum", "ohmic_spectrum",
-    "analyze", "steady_state", "liouvillian", "SteadyState",
+    "analyze", "steady_state", "liouvillian", "SteadyState", "relaxation_time",
     "compare_master_equations", "MasterEquationComparison", "trace_distance",
     "models",
     "heat_flow_map", "HeatFlowMap", "virtual_temperature", "concurrence",

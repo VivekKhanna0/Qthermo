@@ -98,3 +98,41 @@ def test_level_crossing_changes_the_quasi_static_cycle():
                        tau_iso=60, tau_ramp=1.0, gamma=0.5)
     result, _, _ = cycle.limit_cycle(np.eye(4) / 4)
     assert np.isclose(result.net_work, followed.work, rtol=1e-4)
+
+
+def test_degenerate_levels_with_flat_spectrum_warn_and_slow_isochore_is_flagged():
+    # B_c = 4J makes the singlet and |up,up> exactly degenerate; a flat
+    # spectrum has no finite zero-frequency rate, so the direct channel
+    # between them is off and the cold isochore thermalises very slowly.
+    with pytest.warns(RuntimeWarning) as caught:
+        otto_cycle(heisenberg(2, 0.5), heisenberg(4, 0.5), 0.5, 4.0,
+                   [E(X, 0, D), E(X, 1, D)], tau_iso=30, tau_ramp=1.0)
+    messages = " ".join(str(w.message) for w in caught)
+    assert "degenerate" in messages
+    assert "will not reach its Gibbs state" in messages
+
+
+def test_ohmic_spectrum_removes_the_degeneracy_problem():
+    import warnings
+    from qthermo.baths import ohmic_spectrum
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")          # no warning of either kind
+        cycle = otto_cycle(heisenberg(2, 0.5), heisenberg(4, 0.5), 0.5, 4.0,
+                           [E(X, 0, D), E(X, 1, D)], tau_iso=60, tau_ramp=1.0,
+                           spectrum=ohmic_spectrum(0.5))
+    result, _, _ = cycle.limit_cycle(np.eye(4) / 4)
+    ideal = ideal_otto(heisenberg(2, 0.5), heisenberg(4, 0.5), 0.5, 4.0)
+    assert np.isclose(result.net_work, ideal.work, rtol=1e-6)
+
+
+def test_relaxation_time_of_a_qubit_is_the_inverse_T1_rate():
+    # Populations of a qubit under a thermal bath relax at gamma (1 + 2 n):
+    # emission gamma (1 + n) plus absorption gamma n. Coherences decay at half
+    # that, so they set the slowest time, 2 / (gamma (1 + 2 n)).
+    H = qt.qubit_hamiltonian(1.0)
+    gamma, T = 0.3, 0.8
+    n = 1 / np.expm1(1 / T)
+    bath = qt.davies_bath(H, qt.sigma_x, T, gamma=gamma)
+    assert np.isclose(qt.relaxation_time(H, [bath]), 2 / (gamma * (1 + 2 * n)))
+    assert np.isclose(qt.relaxation_time(H, [bath], populations_only=True),
+                      1 / (gamma * (1 + 2 * n)))
