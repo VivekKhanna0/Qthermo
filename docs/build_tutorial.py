@@ -39,21 +39,27 @@ $H = \\tfrac{\\omega_1}{2}(-\\sigma_z^1) + \\tfrac{\\omega_2}{2}(-\\sigma_z^2)
 + \\tfrac{J}{2}\\,(\\sigma_x^1\\sigma_x^2 + \\sigma_y^1\\sigma_y^2 + \\Delta\\,\\sigma_z^1\\sigma_z^2)$,
 with a bath on each qubit coupling through $\\sigma_x$. Since $J \\gg \\gamma$ we use
 **global** (Davies) baths, whose jump operators connect eigenstates of the full
-coupled $H$. `qt.models.spin_chain` builds exactly this; the cell after shows
-the same thing by hand, which is how you would write your own model."""),
+coupled $H$. `qt.models.spin_chain` builds exactly this; the cell after builds
+the same machine with `qt.build_model`, which is how you would describe your
+own system."""),
     code("""diode = qt.models.spin_chain(2, omega=[1.0, 2.0], J=0.2, delta=3.0,
                              T_left=2.0, T_right=0.5, gamma=0.01,
                              master_equation="global")
 print(diode.description)
 print(diode.baths)"""),
-    code("""dims = [2, 2]
-E, X, Y, Z = qt.embed, qt.sigma_x, qt.sigma_y, qt.sigma_z
-H = (E(qt.qubit_hamiltonian(1.0), 0, dims) + E(qt.qubit_hamiltonian(2.0), 1, dims)
-     + 0.1 * (E(X, 0, dims) @ E(X, 1, dims) + E(Y, 0, dims) @ E(Y, 1, dims)
-              + 3.0 * E(Z, 0, dims) @ E(Z, 1, dims)))
-left = qt.davies_bath(H, E(X, 0, dims), temperature=2.0, gamma=0.01, name="left")
-right = qt.davies_bath(H, E(X, 1, dims), temperature=0.5, gamma=0.01, name="right")
-print("same Hamiltonian as the model:", np.allclose(H, diode.H))"""),
+    code("""X, Y, Z = qt.sigma_x, qt.sigma_y, qt.sigma_z
+J, delta = 0.2, 3.0
+by_hand = qt.build_model(
+    local_H=[qt.qubit_hamiltonian(1.0), qt.qubit_hamiltonian(2.0)],
+    interactions={(0, 1): 0.5 * J * (qt.embed(X, 0, [2, 2]) @ qt.embed(X, 1, [2, 2])
+                                    + qt.embed(Y, 0, [2, 2]) @ qt.embed(Y, 1, [2, 2])
+                                    + delta * qt.embed(Z, 0, [2, 2]) @ qt.embed(Z, 1, [2, 2]))},
+    baths=[dict(name="left", site=0, coupling=X, T=2.0, gamma=0.01),
+           dict(name="right", site=1, coupling=X, T=0.5, gamma=0.01)],
+    master_equation="global")
+print("same Hamiltonian as the model:", np.allclose(by_hand.H, diode.H))
+print("same currents:", np.allclose(list(by_hand.analyze().currents.values()),
+                                    list(diode.analyze().currents.values())))"""),
 
     md("""## 2. Audit before trusting any number
 
