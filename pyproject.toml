@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qthermo"
-version = "0.1.0"
+version = "0.2.0"
 description = "Thermodynamic analysis for open quantum systems"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -13,6 +13,11 @@ dependencies = ["numpy>=1.23", "scipy>=1.9"]
 
 [project.optional-dependencies]
 qutip = ["qutip>=4.7"]
+plot = ["matplotlib>=3.5"]
+dev = ["pytest>=7", "matplotlib>=3.5"]
 
 [tool.setuptools.packages.find]
 include = ["qthermo*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
