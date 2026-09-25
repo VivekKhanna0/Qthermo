@@ -80,6 +80,12 @@ from .network import (
     negativity,
     virtual_temperature,
 )
+from .fluctuations import (
+    CurrentStatistics,
+    current_statistics,
+    jump_energy,
+    scaled_cgf,
+)
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
 __version__ = "0.3.0"
@@ -115,5 +121,6 @@ __all__ = [
     "models",
     "heat_flow_map", "HeatFlowMap", "virtual_temperature", "concurrence",
     "negativity", "correlation_matrices",
+    "current_statistics", "CurrentStatistics", "scaled_cgf", "jump_energy",
     "__version__",
 ]

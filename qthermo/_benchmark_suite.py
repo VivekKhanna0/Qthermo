@@ -164,3 +164,50 @@ def _boundary_work():
     from .models import two_qubit_heat_valve
     r = two_qubit_heat_valve(master_equation="local").analyze()
     return r.entropy_production_rate, 0.0
+
+
+# --- fluctuations -----------------------------------------------------------
+
+def _qubit_two_baths():
+    from .baths import davies_bath
+    H = qubit_hamiltonian(1.0)
+    return H, [davies_bath(H, sigma_x, 3.0, gamma=0.3, name="hot"),
+               davies_bath(H, sigma_x, 0.5, gamma=0.7, name="cold")]
+
+
+@benchmark("qubit between two baths: current noise D, exact vs classical FCS",
+           "two-state jump process, tilted-generator eigenvalue (independent code)",
+           tolerance=1e-6, relative=True, group="fluctuations")
+def _fcs_classical():
+    from .fluctuations import current_statistics
+    H, baths = _qubit_two_baths()
+    n = lambda T: 1 / np.expm1(1 / T)
+    up_h, dn_h, up_c, dn_c = 0.3 * n(3), 0.3 * (1 + n(3)), 0.7 * n(.5), 0.7 * (1 + n(.5))
+
+    def theta(s):
+        M = np.array([[-(up_h + up_c), dn_h * np.exp(-s) + dn_c],
+                      [up_h * np.exp(s) + up_c, -(dn_h + dn_c)]])
+        return np.max(np.linalg.eigvals(M).real)
+    h = 1e-4
+    D = (theta(h) - 2 * theta(0) + theta(-h)) / h ** 2
+    return current_statistics(H, {"hot": "quanta"}, baths=baths).noise, D
+
+
+@benchmark("TUR ratio, classical two-bath qubit",
+           ">= 2; Barato & Seifert, PRL 114, 158101 (2015)",
+           kind="lower", tolerance=0.0, group="fluctuations")
+def _tur_classical():
+    from .fluctuations import current_statistics
+    H, baths = _qubit_two_baths()
+    return current_statistics(H, {"hot": "energy"}, baths=baths).tur_ratio, 2.0
+
+
+@benchmark("TUR ratio, three-level maser power (coherent drive)",
+           "< 2 possible; Kalaee, Wacker & Potts, PRE 104, L012103 (2021)",
+           kind="upper", tolerance=0.0, group="fluctuations")
+def _tur_maser():
+    from .fluctuations import current_statistics
+    from .models import three_level_maser
+    m = three_level_maser(1.0, 3.0, T_c=1.0, T_h=200.0, drive=0.05,
+                          gamma_c=0.05, gamma_h=0.001)
+    return current_statistics(m, {"hot": "energy", "cold": "energy"}).tur_ratio, 2.0
