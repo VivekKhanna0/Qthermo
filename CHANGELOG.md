@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased
+
+- **Your own machine:** `build_model(local_H, interactions, baths, ...)`
+  builds a `Model` from site Hamiltonians, couplings and bath specifications.
+  `compare`, `audit`, `report`, `response`, `current_statistics` and the
+  plots all work on it, and it can be rebuilt under local or global baths.
+- **Shareable results:** `report(model, path)` writes a single HTML file with
+  the audit, the per-bath balance sheet, a heat-flow figure, the fluctuation
+  ratios and the raw data.
+- **Interactive pages:** `explorer(build, values, parameter, path)` writes an
+  HTML page with a slider over one parameter. It shows the heat-flow network,
+  currents, the entropy production rate and virtual temperatures, and can put
+  the local and global master equations side by side.
+- **Szilard engine:** `szilard_engine` models feedback with measurement errors
+  and checks the result against the Sagawa–Ueda bound `W <= kT I`.
+
 ## 0.5.0
 
 - **Periodically driven machines:** `floquet_analyze`, `DrivenBath` and
