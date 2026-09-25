@@ -232,3 +232,38 @@ def test_iterative_solver_agrees_with_direct(monkeypatch):
     monkeypatch.setattr(steady_module, "_ITERATIVE_ABOVE", 0)
     iterative = qt.steady_state(m.H, m.baths)
     assert np.max(np.abs(direct - iterative)) < 1e-10
+
+
+def test_build_model_reproduces_the_builtin_heat_valve():
+    built = qt.build_model(
+        [qt.qubit_hamiltonian(1.0), qt.qubit_hamiltonian(0.6)],
+        {(0, 1): (0.6 * qt.sigma_x, qt.sigma_x)},
+        [dict(name="hot", site=0, coupling=qt.sigma_x, T=2.0, gamma=0.1),
+         dict(name="cold", site=1, coupling=qt.sigma_x, T=1.0, gamma=0.1)],
+        master_equation="local")
+    reference = models.two_qubit_heat_valve(master_equation="local")
+    assert np.allclose(built.H, reference.H)
+    for name in ("hot", "cold"):
+        assert np.isclose(built.analyze().current(name), reference.analyze().current(name))
+    comparison = built.compare()
+    assert np.isclose(comparison.global_.current("hot"),
+                      models.two_qubit_heat_valve(master_equation="global").analyze().current("hot"))
+    assert built.roles == {"cold": "cold", "hot": "hot"}
+
+
+def test_build_model_accepts_embedded_interactions_and_mixed_dimensions():
+    dims = [2, 3]
+    h_qutrit = np.diag([0.0, 1.0, 2.1]).astype(complex)
+    V = 0.2 * qt.embed(qt.sigma_x, 0, dims) @ qt.embed(
+        np.diag([1.0, 1.0], 1) + np.diag([1.0, 1.0], -1), 1, dims)
+    m = qt.build_model([qt.qubit_hamiltonian(1.0), h_qutrit], {(0, 1): V},
+                       [dict(name="a", site=0, coupling=qt.sigma_x, T=2.0),
+                        dict(name="b", site=1, coupling=np.diag([1.0, 1.0], 1) + np.diag([1.0, 1.0], -1), T=0.5)])
+    r = m.analyze()
+    assert abs(r.total_current) < 1e-12 and r.entropy_production_rate > 0
+    assert qt.audit(m) is not None
+
+
+def test_build_model_rejects_bad_specs():
+    with pytest.raises(qt.QThermoError):
+        qt.build_model([qt.qubit_hamiltonian(1.0)], baths=[dict(name="x", site=0, T=1.0)])

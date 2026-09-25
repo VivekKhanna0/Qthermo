@@ -10,7 +10,7 @@ Definitions of the physics are in [physics.md](physics.md).
 
 Canonical quantum thermal machines, built in one call.
 
-- **`class models.Model(H: 'np.ndarray', H0: 'np.ndarray', dims: 'list', local_H: 'list', baths: 'list', master_equation: 'str', r...)`**  
+- **`class Model(H: 'np.ndarray', H0: 'np.ndarray', dims: 'list', local_H: 'list', baths: 'list', master_equation: 'str', r...)`**  
   A thermal machine: Hamiltonian, reference energies, baths, structure.
 - **`models.absorption_refrigerator(omega_c: 'float' = 1.0, omega_h: 'float' = 3.0, T_c: 'float' = 1.0, T_h: 'float' = 4.0, T_r: 'float' = 1.5...)`**  
   Three-qubit absorption refrigerator.
@@ -22,6 +22,8 @@ Canonical quantum thermal machines, built in one call.
   Two coupled qubits, hot bath on the first, cold bath on the second.
 - **`models.thermal_transistor(T_L: 'float' = 1.0, T_M: 'float' = 0.2, T_R: 'float' = 0.2, omega: 'float' = 1.0, zz_left: 'float' = 1.0, ...)`**  
   Three qubits with Ising (zz) couplings as a quantum thermal transistor.
+- **`build_model(local_H, interactions=None, baths=(), master_equation: 'str' = 'global', site_names=None, description: 'st...)`**  
+  Build a :class:`Model` for your own multi-site machine.
 
 ### `qthermo.baths`
 

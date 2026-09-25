@@ -90,27 +90,31 @@ currents, and the internal balances close to ~1e-17.
 
 ## Your own model
 
-Nothing above is special-cased. A machine is a Hamiltonian plus named baths:
+Nothing above is special-cased. Describe the sites, the couplings and which
+bath touches which site:
 
 ```python
-dims = [2, 2]
-h0, h1 = qt.qubit_hamiltonian(1.0), qt.qubit_hamiltonian(0.6)
-V = 0.3 * qt.embed(qt.sigma_x, 0, dims) @ qt.embed(qt.sigma_x, 1, dims)
-H = qt.embed(h0, 0, dims) + qt.embed(h1, 1, dims) + V
+machine = qt.build_model(
+    local_H=[qt.qubit_hamiltonian(1.0), qt.qubit_hamiltonian(0.6)],
+    interactions={(0, 1): (0.3 * qt.sigma_x, qt.sigma_x)},          # 0.3 sx (x) sx
+    baths=[dict(name="hot", site=0, coupling=qt.sigma_x, T=2.0, gamma=0.1),
+           dict(name="cold", site=1, coupling=qt.sigma_x, T=1.0, gamma=0.1)],
+    master_equation="global")
 
-hot  = qt.davies_bath(H, qt.embed(qt.sigma_x, 0, dims), temperature=2.0, gamma=0.1, name="hot")
-cold = qt.davies_bath(H, qt.embed(qt.sigma_x, 1, dims), temperature=1.0, gamma=0.1, name="cold")
-
-result = qt.analyze(H, [hot, cold])                           # exact steady state, per-bath currents
-stats  = qt.current_statistics(H, "hot", baths=[hot, cold])   # exact noise, TUR / KUR ratios
-flows  = qt.heat_flow_map(result, dims=dims, local_H=[h0, h1],
-                          interaction_terms={(0, 1): V})   # who heats whom, virtual temperatures
+steady = machine.analyze()                          # exact steady state, per-bath currents
+print(qt.audit(machine))                            # every consistency check
+machine.compare()                                   # the same machine under local baths
+qt.current_statistics(machine, "hot")               # exact noise, TUR / KUR ratios
+qt.plot_machine(steady)                             # heat-flow network, virtual temperatures
+qt.report(machine, "machine.html")                  # all of it in one shareable page
 ```
 
-`davies_bath` builds the *global* (secular, detailed-balance) master equation
-for any Hamiltonian: coupled, degenerate, many-body. `local_bath` builds the
-local one. Both return the same `Bath` object, so every tool accepts either.
-QuTiP `Qobj`s are accepted anywhere an array is.
+Sites can have any dimension, and interactions can be given as full matrices.
+For full control, build the baths yourself:
+`qt.davies_bath(H, coupling, T)` gives the *global* (secular,
+detailed-balance) bath for any Hamiltonian, coupled, degenerate or many-body,
+and `qt.local_bath` gives the local one. `qt.analyze(H, baths)` takes any list
+of them. QuTiP `Qobj`s are accepted anywhere an array is.
 
 ## I want to...
 
@@ -118,6 +122,7 @@ QuTiP `Qobj`s are accepted anywhere an array is.
 |---|---|
 | get currents, entropy production, COP/efficiency of a continuous machine | `qt.analyze(H, baths)` or `model.analyze()` |
 | check my model for known modelling mistakes | `qt.audit(model)` or `qt.audit(H, baths)` |
+| describe my own machine once and get every tool | `qt.build_model(local_H, interactions, baths)` |
 | build baths for a coupled / many-body system | `qt.davies_bath` (global), `qt.local_bath` (local) |
 | know whether local vs global master equations matter | `model.compare()` |
 | see where heat flows inside a multi-qubit machine | `qt.heat_flow_map(steady)`, `qt.plot_machine(steady)` |

@@ -31,6 +31,7 @@ __all__ = [
     "spin_chain",
     "two_qubit_heat_valve",
     "thermal_transistor",
+    "build_model",
 ]
 
 _MASTER_EQUATIONS = ("local", "global")
@@ -377,3 +378,80 @@ def thermal_transistor(T_L: float = 1.0, T_M: float = 0.2, T_R: float = 0.2,
                  site_names=["L", "M", "R"], bonds=[(0, 1), (1, 2)],
                  interaction_terms=terms,
                  description="three-qubit quantum thermal transistor (zz-coupled)")
+
+
+def build_model(local_H, interactions=None, baths=(), master_equation: str = "global",
+                site_names=None, description: str = "custom machine") -> Model:
+    """Build a :class:`Model` for your own multi-site machine.
+
+    Parameters
+    ----------
+    local_H : list of arrays
+        One Hamiltonian per site (unembedded); their dimensions define ``dims``.
+    interactions : dict, optional
+        ``{(i, j, ...): V}`` interaction terms. ``V`` is either already embedded
+        (full dimension) or a product of single-site operators given as a tuple
+        ``(op_i, op_j, ...)`` in the order of the key, which is embedded for you.
+    baths : list of dict
+        Each ``{"name", "site", "coupling", "T"}`` plus optional ``"gamma"`` or
+        ``"spectrum"``. ``coupling`` acts on that site (unembedded).
+    master_equation : "global" or "local"
+        Global: Davies baths on the full Hamiltonian. Local: each bath acts
+        through the jump operators of its isolated site.
+
+    The model can be rebuilt under the other master equation (``compare()``),
+    audited, reported and plotted like the built-in ones.
+
+    Examples
+    --------
+    >>> m = qt.build_model(
+    ...     [qt.qubit_hamiltonian(1.0), qt.qubit_hamiltonian(0.6)],
+    ...     {(0, 1): (0.3 * qt.sigma_x, qt.sigma_x)},
+    ...     [dict(name="hot", site=0, coupling=qt.sigma_x, T=2.0, gamma=0.1),
+    ...      dict(name="cold", site=1, coupling=qt.sigma_x, T=1.0, gamma=0.1)])
+    >>> print(qt.audit(m))
+    """
+    master_equation = _check_me(master_equation)
+    local_H = [np.asarray(h, dtype=complex) for h in local_H]
+    dims = [h.shape[0] for h in local_H]
+    full = int(np.prod(dims))
+    H0 = sum(embed(h, i, dims) for i, h in enumerate(local_H))
+    terms = {}
+    for key, V in (interactions or {}).items():
+        key = tuple(int(k) for k in (key if isinstance(key, tuple) else (key,)))
+        if isinstance(V, tuple):
+            if len(V) != len(key):
+                raise QThermoError(f"interaction {key}: {len(V)} factors for {len(key)} sites")
+            op = np.eye(full, dtype=complex)
+            for site, factor in zip(key, V):
+                op = op @ embed(np.asarray(factor, dtype=complex), site, dims)
+            V = op
+        V = np.asarray(V, dtype=complex)
+        if V.shape != (full, full):
+            raise QThermoError(f"interaction {key} has shape {V.shape}, expected {(full, full)}")
+        terms[key] = V
+    H = H0 + sum(terms.values()) if terms else H0
+
+    built = []
+    for spec in baths:
+        try:
+            name, site, coupling, T = spec["name"], int(spec["site"]), spec["coupling"], spec["T"]
+        except KeyError as exc:
+            raise QThermoError(f"bath spec is missing {exc}: need name, site, coupling, T") from None
+        built.append(_site_bath(H, H0, local_H[site], np.asarray(coupling, dtype=complex),
+                                site, dims, T, spec.get("gamma", 0.01), name,
+                                master_equation, spectrum=spec.get("spectrum")))
+    temps = {b.name: b.temperature for b in built}
+    roles = {}
+    if len(temps) >= 2:
+        ordered = sorted(temps, key=temps.get)
+        roles = {"cold": ordered[0], "hot": ordered[-1]}
+
+    def rebuild(me):
+        return build_model(local_H, interactions, baths, me, site_names, description)
+
+    return Model(H=H, H0=H0, dims=dims, local_H=local_H, baths=built,
+                 master_equation=master_equation, roles=roles,
+                 site_names=list(site_names or [f"q{i}" for i in range(len(dims))]),
+                 bonds=[k for k in terms if len(k) == 2], interaction_terms=terms,
+                 description=description, rebuild=rebuild)

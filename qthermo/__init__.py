@@ -118,6 +118,7 @@ from .units import BOLTZMANN, HBAR, PLANCK, LabUnits
 from .transient import TransientResult, product_thermal_state, transient
 from .response import ThermalResponse, response
 from .report import report
+from .models import Model, build_model
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
 __version__ = "0.5.0"
@@ -151,7 +152,7 @@ __all__ = [
     "flat_spectrum", "ohmic_spectrum",
     "analyze", "steady_state", "liouvillian", "SteadyState", "relaxation_time",
     "compare_master_equations", "MasterEquationComparison", "trace_distance",
-    "models",
+    "models", "Model", "build_model",
     "heat_flow_map", "HeatFlowMap", "virtual_temperature", "concurrence",
     "negativity", "correlation_matrices", "site_dynamics",
     "current_statistics", "CurrentStatistics", "scaled_cgf", "jump_energy",
