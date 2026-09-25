@@ -53,10 +53,15 @@ def _unvec(v: np.ndarray, dim: int) -> np.ndarray:
     return v.reshape((dim, dim), order="F")
 
 
-def _collect_c_ops(baths) -> list[np.ndarray]:
+def _collect_c_ops(baths) -> list:
     c_ops = []
     for bath in baths:
-        c_ops.extend(bath.c_ops if isinstance(bath, Bath) else [_as_matrix(bath)])
+        if isinstance(bath, Bath):
+            c_ops.extend(bath.c_ops)
+        elif sp.issparse(bath):
+            c_ops.append(bath)
+        else:
+            c_ops.append(_as_matrix(bath))
     return c_ops
 
 
@@ -72,7 +77,12 @@ def _jump_sum_sparse(ops, dim):
     """``sum_k conj(A_k) (x) A_k`` assembled once in COO form."""
     rows, cols, vals = [], [], []
     for op in ops:
-        coo = sp.coo_matrix(op)
+        if sp.issparse(op):
+            coo = sp.coo_matrix(op)
+        else:
+            op = np.asarray(op)
+            scale = np.max(np.abs(op)) if op.size else 0.0
+            coo = sp.coo_matrix(np.where(np.abs(op) > 1e-14 * scale, op, 0.0))
         r, c, v = coo.row, coo.col, coo.data
         rows.append((r[:, None] * dim + r[None, :]).ravel())
         cols.append((c[:, None] * dim + c[None, :]).ravel())
@@ -93,8 +103,12 @@ def liouvillian(H, c_ops=(), sparse: bool | None = None):
     dimension exceeds 40 (or when ``sparse=True``).
     """
     H = check_hermitian(_as_matrix(H))
+    return _liouvillian_from_ops(H, _collect_c_ops(c_ops), sparse)
+
+
+def _liouvillian_from_ops(H, ops, sparse=None):
+    """Liouvillian from a flat list of dense or scipy-sparse jump operators."""
     dim = H.shape[0]
-    ops = _collect_c_ops(c_ops)
     for op in ops:
         if op.shape != H.shape:
             raise QThermoError(
@@ -102,7 +116,12 @@ def liouvillian(H, c_ops=(), sparse: bool | None = None):
                 f"shape {H.shape}")
     if sparse is None:
         sparse = dim > 40
-    decay = sum((op.conj().T @ op for op in ops), np.zeros_like(H))
+    if not sparse:
+        ops = [op.toarray() if sp.issparse(op) else op for op in ops]
+    decay = np.zeros_like(H)
+    for op in ops:
+        decay = decay + (op.conj().T @ op)
+    decay = decay.toarray() if sp.issparse(decay) else np.asarray(decay)
     K = -1j * H - 0.5 * decay          # rho -> K rho + rho K^dag + jumps
     if sparse:
         eye = sp.identity(dim, format="csr", dtype=complex)
@@ -139,7 +158,52 @@ def steady_state(H, baths=(), initial_state=None, check_unique: bool = True,
     """
     H = check_hermitian(_as_matrix(H))
     dim = H.shape[0]
-    L = liouvillian(H, baths)
+    shared = _shared_eigenbasis(H, baths)
+    if shared is not None:
+        V, energies = shared
+        ops = [op for b in baths for op in b.eig_ops]
+        start = None if initial_state is None else V.conj().T @ _as_matrix(initial_state) @ V
+        rho_b = _solve_steady(np.diag(energies).astype(complex), ops, start,
+                              check_unique, tol)
+        rho = V @ rho_b @ V.conj().T
+        return 0.5 * (rho + rho.conj().T)
+    ops = _collect_c_ops(baths)
+    basis = _working_basis(H, ops)
+    if basis is not None:
+        # Global (Davies) jump operators are sparse in the eigenbasis of H and
+        # dense in any other: solve there, then rotate back.
+        V = basis
+        rotated = [V.conj().T @ op @ V for op in ops]
+        start = None if initial_state is None else V.conj().T @ _as_matrix(initial_state) @ V
+        rho_b = steady_state(np.diag(np.linalg.eigvalsh(H)).astype(complex), rotated,
+                             initial_state=start, check_unique=check_unique, tol=tol)
+        rho = V @ rho_b @ V.conj().T
+        return 0.5 * (rho + rho.conj().T)
+    return _solve_steady(H, ops, initial_state, check_unique, tol)
+
+
+def _shared_eigenbasis(H, baths):
+    """``(V, energies)`` if every bath is a Davies bath built on this H."""
+    baths = list(baths)
+    if not baths or not all(isinstance(b, Bath) and b.eig_ops is not None
+                            for b in baths):
+        return None
+    V, energies = baths[0].eigenbasis, baths[0].energies
+    for b in baths[1:]:
+        if b.eigenbasis is not V and not (
+                b.eigenbasis.shape == V.shape and np.allclose(b.eigenbasis, V)
+                and np.allclose(b.energies, energies)):
+            return None
+    scale = max(np.max(np.abs(energies)), 1.0)
+    rotated = V.conj().T @ H @ V
+    if not np.allclose(rotated, np.diag(energies), atol=1e-9 * scale):
+        return None
+    return V, energies
+
+
+def _solve_steady(H, ops, initial_state, check_unique, tol):
+    dim = H.shape[0]
+    L = _liouvillian_from_ops(H, ops)
     dense = not sp.issparse(L)
 
     trace_row = _vec(np.eye(dim)).conj()
@@ -174,13 +238,37 @@ def steady_state(H, baths=(), initial_state=None, check_unique: bool = True,
     return rho / np.trace(rho).real
 
 
+def _density(ops, dim) -> float:
+    if not ops:
+        return 0.0
+    return float(np.mean([np.count_nonzero(np.abs(op) > 1e-13 * max(np.max(np.abs(op)), 1e-300))
+                          for op in ops])) / (dim * dim)
+
+
+def _working_basis(H, ops, threshold: int = 40):
+    """Eigenbasis of H if it makes large jump operators much sparser."""
+    dim = H.shape[0]
+    if dim <= threshold or not ops:
+        return None
+    here = _density(ops, dim)
+    if here < 0.05:
+        return None
+    _, V = np.linalg.eigh(H)
+    sample = ops[::max(1, len(ops) // 50)]
+    there = _density([V.conj().T @ op @ V for op in sample], dim)
+    return V if there < 0.25 * here else None
+
+
 def _solve_with_trace_row(L, trace_row, rhs, dense, rcond_min=1e-13):
     """Solve the trace-constrained steady-state system; flag singularity."""
     import scipy.linalg as sla
     if dense:
         A = np.array(L, dtype=complex)
         A[0, :] = trace_row
-        lu, piv = sla.lu_factor(A, check_finite=False)
+        with warnings.catch_warnings():
+            # an exactly singular matrix is the non-unique case, handled below
+            warnings.simplefilter("ignore", sla.LinAlgWarning)
+            lu, piv = sla.lu_factor(A, check_finite=False)
         anorm = np.max(np.sum(np.abs(A), axis=0))
         rcond, _ = sla.lapack.zgecon(lu, anorm, norm="1")
         if rcond < rcond_min:
@@ -379,10 +467,7 @@ def analyze(H, baths, energy=None, initial_state=None) -> SteadyState:
 
     rho = steady_state(H, baths, initial_state=initial_state)
     E = H if energy is None else check_hermitian(_as_matrix(energy), "energy")
-    currents = {
-        b.name: float(np.real(np.trace(E @ dissipator(b.c_ops, rho))))
-        for b in baths
-    }
+    currents = {b.name: b.heat_current(rho, E) for b in baths}
     result = SteadyState(H=H, baths=baths, rho=rho, currents=currents, energy=E)
     if energy is None and result.entropy_production_rate < -1e-9:
         warnings.warn(

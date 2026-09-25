@@ -251,10 +251,7 @@ def current_statistics(source, count, baths=None, energy=None,
     if all(b.temperature is not None for b in baths):
         sigma = 0.0
         for b in baths:
-            D_rho = sum(Lk @ rho @ Lk.conj().T
-                        - 0.5 * (Lk.conj().T @ Lk @ rho + rho @ Lk.conj().T @ Lk)
-                        for Lk in b.c_ops)
-            sigma -= float(np.real(np.trace(E @ D_rho))) / b.temperature
+            sigma -= b.heat_current(rho, E) / b.temperature
     return CurrentStatistics(mean, float(noise), activity, sigma, label)
 
 

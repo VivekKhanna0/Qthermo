@@ -191,3 +191,24 @@ def test_analyze_rejects_mismatched_bath():
     bad = qt.Bath("bad", qt.thermal_bath(1.0, 1.0, 1.0), 1.0)
     with pytest.raises(qt.QThermoError, match="dimension"):
         qt.analyze(m.H, [m.baths[0], bad])
+
+
+def test_six_qubit_global_chain_is_fast_and_exact():
+    """Global baths on 64 levels: eigenbasis-sparse path, Gibbs at equal T."""
+    import time
+    start = time.perf_counter()
+    m = models.spin_chain(6, J=0.3, T_left=1.2, T_right=1.2, master_equation="global")
+    r = m.analyze()
+    assert np.max(np.abs(r.rho - qt.thermal_state(m.H, 1.2))) < 1e-9
+    assert abs(r.current("left")) < 1e-12
+    hot = models.spin_chain(6, J=0.3, T_left=2.0, T_right=0.5,
+                            master_equation="global").analyze()
+    assert hot.current("left") > 0 and abs(hot.total_current) < 1e-12
+    assert time.perf_counter() - start < 60
+
+
+def test_lazy_dense_view_matches_eigenbasis_operators():
+    m = models.spin_chain(3, master_equation="global")
+    bath = m.baths[0]
+    rho = qt.steady_state(m.H, m.baths)
+    assert np.allclose(bath.dissipator(rho), qt.dissipator(bath.c_ops, rho), atol=1e-13)

@@ -258,7 +258,7 @@ def heat_flow_map(source, model=None, *, rho=None, dims=None, local_H=None,
     V_total = sum(interaction_terms.values()) if interaction_terms else None
     bath_to_site, bath_to_interaction, bath_T, bath_sites = {}, {}, {}, {}
     for bath in baths:
-        D = dissipator(bath.c_ops, rho)
+        D = bath.dissipator(rho)
         for i in range(n):
             bath_to_site[(bath.name, i)] = float(np.real(np.trace(h[i] @ D)))
         bath_to_interaction[bath.name] = (

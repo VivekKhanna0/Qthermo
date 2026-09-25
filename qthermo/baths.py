@@ -27,8 +27,6 @@ system from that bath, matching ``Q > 0`` elsewhere in the package.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
 import numpy as np
 
 from .channels import mean_occupation
@@ -47,7 +45,6 @@ __all__ = [
 ]
 
 
-@dataclass
 class Bath:
     """A named set of collapse operators coupling the system to one reservoir.
 
@@ -66,33 +63,73 @@ class Bath:
         to flag results that depend on the local approximation.
     sites : tuple of int
         Sites the bath physically touches, used by per-site plots.
+    eigenbasis, eig_ops, energies
+        Internal: baths built by :func:`davies_bath` store their jump operators
+        as sparse matrices in the eigenbasis of the Hamiltonian (columns of
+        ``eigenbasis``), where they are nearly diagonal-free and cheap. The
+        dense ``c_ops`` view is built only when something asks for it.
     """
 
-    name: str
-    c_ops: list
-    temperature: float | None = None
-    kind: str = "custom"
-    sites: tuple = field(default_factory=tuple)
-
-    def __post_init__(self):
-        self.temperature = check_temperature(
-            self.temperature, f"bath {self.name!r} temperature")
-        self.c_ops = [_as_matrix(L) for L in self.c_ops]
-        if not self.c_ops:
+    def __init__(self, name, c_ops=None, temperature=None, kind="custom",
+                 sites=(), *, eigenbasis=None, eig_ops=None, energies=None):
+        self.name = name
+        self.temperature = check_temperature(temperature, f"bath {name!r} temperature")
+        self.kind = kind
+        self.sites = tuple(int(s) for s in sites)
+        self.eigenbasis = eigenbasis
+        self.energies = energies
+        self.eig_ops = list(eig_ops) if eig_ops is not None else None
+        self._c_ops = [_as_matrix(L) for L in c_ops] if c_ops is not None else None
+        if not (self._c_ops or self.eig_ops):
             raise QThermoError(
-                f"bath {self.name!r} has no jump operators. If the coupling "
+                f"bath {name!r} has no jump operators. If the coupling "
                 "operator commutes with the Hamiltonian, no transition is "
                 "possible and the bath exchanges no energy with the system."
             )
-        self.sites = tuple(int(s) for s in self.sites)
+        if self._c_ops is None and self.eigenbasis is None:
+            raise QThermoError("eig_ops need an eigenbasis")
+
+    @property
+    def c_ops(self) -> list:
+        """Jump operators in the computational basis (built lazily)."""
+        if self._c_ops is None:
+            V = self.eigenbasis
+            self._c_ops = [V @ op.toarray() @ V.conj().T for op in self.eig_ops]
+        return self._c_ops
+
+    @property
+    def n_ops(self) -> int:
+        return len(self.eig_ops) if self.eig_ops is not None else len(self._c_ops)
 
     @property
     def dim(self) -> int:
-        return self.c_ops[0].shape[0]
+        if self.eigenbasis is not None:
+            return self.eigenbasis.shape[0]
+        return self._c_ops[0].shape[0]
 
     def dissipator(self, rho) -> np.ndarray:
         """This bath's contribution ``D[rho]`` to the master equation."""
+        rho = _as_matrix(rho)
+        if self.eig_ops is not None:
+            V = self.eigenbasis
+            rho_e = V.conj().T @ rho @ V
+            jumps, decay = self._eigenbasis_superoperator()
+            dim = rho_e.shape[0]
+            gained = (jumps @ rho_e.reshape(-1, order="F")).reshape((dim, dim), order="F")
+            out = gained - 0.5 * (decay @ rho_e + rho_e @ decay)
+            return V @ out @ V.conj().T
         return dissipator(self.c_ops, rho)
+
+    def _eigenbasis_superoperator(self):
+        """Cached ``(sum conj(L) (x) L, sum L^dag L)`` in the eigenbasis."""
+        if getattr(self, "_super_cache", None) is None:
+            from .steady import _jump_sum_sparse
+            dim = self.dim
+            decay = np.zeros((dim, dim), dtype=complex)
+            for L in self.eig_ops:
+                decay += (L.conj().T @ L).toarray()
+            self._super_cache = (_jump_sum_sparse(self.eig_ops, dim), decay)
+        return self._super_cache
 
     def heat_current(self, rho, H) -> float:
         """Energy flow into the system from this bath, ``Tr[H D(rho)]``."""
@@ -101,7 +138,7 @@ class Bath:
     def __repr__(self) -> str:
         T = "--" if self.temperature is None else f"{self.temperature:g}"
         return (f"Bath({self.name!r}, kind={self.kind}, T={T}, "
-                f"{len(self.c_ops)} jump operators)")
+                f"{self.n_ops} jump operators)")
 
 
 def dissipator(c_ops, rho) -> np.ndarray:
@@ -161,6 +198,47 @@ def _cluster(values: np.ndarray, tol: float) -> list[np.ndarray]:
     return groups
 
 
+def _bohr_components_eigenbasis(H, A, tol):
+    """Bohr components of ``A`` as sparse matrices in the eigenbasis of ``H``.
+
+    Returns ``(energies, V, [(omega, csr), ...])``. Vectorised: every non-zero
+    matrix element of ``A`` in the eigenbasis is assigned the Bohr frequency of
+    its level pair, frequencies are grouped within ``tol``, and each group
+    becomes one sparse operator. Degenerate levels share one energy, so the
+    grouping reproduces the projector definition exactly.
+    """
+    import scipy.sparse as sp
+
+    energies, V = np.linalg.eigh(H)
+    width = float(energies[-1] - energies[0])
+    if tol is None:
+        tol = 1e-9 * max(width, 1.0)
+    level_energy = energies.copy()
+    for group in _cluster(energies, tol):
+        level_energy[group] = np.mean(energies[group])
+
+    A_e = V.conj().T @ A @ V
+    scale = np.max(np.abs(A_e)) if A_e.size else 0.0
+    if scale == 0.0:
+        return energies, V, []
+    rows, cols = np.nonzero(np.abs(A_e) > 1e-14 * scale)
+    values = A_e[rows, cols]
+    omegas = level_energy[cols] - level_energy[rows]   # lowers energy by omega
+    order = np.argsort(omegas, kind="stable")
+    rows, cols, values, omegas = rows[order], cols[order], values[order], omegas[order]
+    breaks = np.nonzero(np.diff(omegas) > tol)[0] + 1
+    dim = H.shape[0]
+    components = []
+    for chunk in np.split(np.arange(len(omegas)), breaks):
+        omega = float(np.mean(omegas[chunk]))
+        if abs(omega) <= tol:
+            omega = 0.0
+        op = sp.csr_matrix((values[chunk], (rows[chunk], cols[chunk])),
+                           shape=(dim, dim))
+        components.append((omega, op))
+    return energies, V, components
+
+
 def bohr_decomposition(H, A, tol: float | None = None) -> dict:
     """Split ``A`` into components ``A(w)`` that lower the energy by ``w``.
 
@@ -182,30 +260,8 @@ def bohr_decomposition(H, A, tol: float | None = None) -> dict:
         raise QThermoError(
             f"coupling operator has shape {A.shape} but the Hamiltonian has "
             f"shape {H.shape}")
-    energies, vectors = np.linalg.eigh(H)
-    width = float(energies[-1] - energies[0])
-    if tol is None:
-        tol = 1e-9 * max(width, 1.0)
-
-    level_groups = _cluster(energies, tol)
-    level_energy = [float(np.mean(energies[g])) for g in level_groups]
-    projectors = [vectors[:, g] @ vectors[:, g].conj().T for g in level_groups]
-
-    components: dict[float, np.ndarray] = {}
-    keys: list[float] = []
-    for a, P_a in enumerate(projectors):          # final level (energy e)
-        for b, P_b in enumerate(projectors):      # initial level (energy e')
-            block = P_a @ A @ P_b
-            if np.max(np.abs(block)) < 1e-14:
-                continue
-            omega = level_energy[b] - level_energy[a]
-            match = next((k for k in keys if abs(k - omega) <= tol), None)
-            if match is None:
-                keys.append(omega)
-                components[omega] = block
-            else:
-                components[match] = components[match] + block
-    return components
+    _, V, components = _bohr_components_eigenbasis(H, A, tol)
+    return {omega: V @ op.toarray() @ V.conj().T for omega, op in components}
 
 
 def davies_bath(H, coupling, temperature: float, gamma: float = 1.0,
@@ -226,6 +282,10 @@ def davies_bath(H, coupling, temperature: float, gamma: float = 1.0,
     ``gamma(-w) / gamma(w) = exp(-w / T)`` exactly, so the Gibbs state of ``H``
     at ``temperature`` is a fixed point for any ``H`` -- coupled, degenerate,
     many-body. The Lamb shift is neglected.
+
+    The jump operators are stored sparse in the eigenbasis of ``H``, so global
+    baths on systems of a few hundred levels stay cheap; the solvers use that
+    representation directly.
 
     Parameters
     ----------
@@ -249,12 +309,18 @@ def davies_bath(H, coupling, temperature: float, gamma: float = 1.0,
     temperature = check_temperature(temperature, f"bath {name!r} temperature")
     if temperature is None:
         raise QThermoError(f"bath {name!r} needs a temperature")
+    H = check_hermitian(_as_matrix(H))
     coupling = check_hermitian(_as_matrix(coupling), f"bath {name!r} coupling")
+    if coupling.shape != H.shape:
+        raise QThermoError(
+            f"coupling operator has shape {coupling.shape} but the Hamiltonian "
+            f"has shape {H.shape}")
     J = spectrum if spectrum is not None else flat_spectrum(gamma)
 
-    c_ops = []
-    for omega, A_omega in sorted(bohr_decomposition(H, coupling, tol).items()):
-        if abs(omega) <= (tol or 1e-12):
+    energies, V, components = _bohr_components_eigenbasis(H, coupling, tol)
+    eig_ops = []
+    for omega, A_omega in components:
+        if omega == 0.0:
             rate = zero_frequency_rate
             if rate is None:
                 limit = getattr(J, "zero_frequency", None)
@@ -264,9 +330,10 @@ def davies_bath(H, coupling, temperature: float, gamma: float = 1.0,
         else:
             rate = float(J(-omega)) * mean_occupation(-omega, temperature)
         if rate > 0:
-            c_ops.append(np.sqrt(rate) * A_omega)
+            eig_ops.append(np.sqrt(rate) * A_omega)
 
-    return Bath(name, c_ops, temperature, kind="global", sites=tuple(sites))
+    return Bath(name, None, temperature, kind="global", sites=tuple(sites),
+                eigenbasis=V, eig_ops=eig_ops, energies=energies)
 
 
 def local_bath(H_site, coupling, temperature: float, site: int, dims,
