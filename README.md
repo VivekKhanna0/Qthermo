@@ -14,7 +14,7 @@ what you think it means.
 ```bash
 git clone https://github.com/VivekKhanna0/Qthermo.git && cd Qthermo
 pip install -e ".[plot]"          # numpy, scipy; matplotlib for figures
-python -m qthermo.benchmarks      # 26 checks against published results, ~10 s
+python -m qthermo.benchmarks      # 41 checks against published results, ~40 s
 ```
 
 **Highlights**, each reproduced by the package and checked in CI:
@@ -254,7 +254,7 @@ ok  Gallavotti-Cohen symmetry of heat FCS, 3-qubit chain          1.84228e-15   
 ok  geodesic erasure protocol: excess heat x tau                     0.890737     0.886534  ==
       = L^2 (thermodynamic length); Scandi & Perarnau-Llobet, Quantum 3, 197 (2019)
 ...
-26/26 passed in 10.0 s
+41/41 passed in 36.5 s
 ```
 
 The exact definitions of every computed quantity (sign conventions, which
