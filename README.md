@@ -90,7 +90,24 @@ QuTiP `Qobj`s are accepted anywhere an array is.
 ## What it catches
 
 Most of the value is here. Each of these is a mistake that produces a plausible
-number with no error message, and each is detected and explained:
+number with no error message, and each is detected and explained. `qt.audit`
+runs every check in one call:
+
+```python
+print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
+```
+```
+[ERROR] local vs global: the two master equations disagree on the direction of heat flow for hot, cold
+          Inter-site coupling is too strong for the local approximation. Use the
+          global model.
+[info]  relaxation time: 2.72 (populations)
+[ok]    steady state: unique
+[ok]    second law: entropy production rate 1.937e-02 >= 0
+[ok]    uncertainty relation: 'hot': TUR ratio 9.626 >= 2
+[ok]    uncertainty relation: 'cold': TUR ratio 5.117 >= 2
+------------------------------------------------------------
+1 error(s), 0 warning(s), 5 other checks
+```
 
 | Trap | What happens | What `qthermo` does |
 |---|---|---|
@@ -102,6 +119,7 @@ number with no error message, and each is detected and explained:
 | Global ME and local currents | The secular steady state is diagonal in H, so every bond current i⟨[V,h_i]⟩ is identically zero | `heat_flow_map` says so instead of printing zeros |
 | Reaction-coordinate truncation | Strong coupling displaces the RC; too few levels gives unconverged currents | `rc_convergence()` reports the change between truncations |
 | Temperature inconsistent with the channel | σ < 0 from a mislabelled bath | Warning naming the likely cause |
+| Bath temperature inconsistent with its rates | A bath labelled T=2 whose jump rates encode T=3 gives a meaningless σ | `audit` infers the detailed-balance temperature from the jump operators and compares |
 | Invalid input | Non-Hermitian H, unnormalised ρ, wrong dimensions | `QThermoError` naming the violated requirement, never a LinAlg traceback |
 
 ## What it does
@@ -169,7 +187,7 @@ monotonically from the hot end to the cold end.</td>
 
 ```bash
 python -m qthermo.benchmarks     # computed value next to the published / analytic one
-python -m pytest                 # 114 tests
+python -m pytest                 # 120+ tests
 ```
 
 Every benchmark is a number fixed independently of this code: a closed-form
