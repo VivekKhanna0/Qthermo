@@ -212,3 +212,13 @@ def test_lazy_dense_view_matches_eigenbasis_operators():
     bath = m.baths[0]
     rho = qt.steady_state(m.H, m.baths)
     assert np.allclose(bath.dissipator(rho), qt.dissipator(bath.c_ops, rho), atol=1e-13)
+
+
+def test_xx_chain_current_is_length_independent_and_zz_makes_it_decay():
+    def J(n, delta):
+        return models.spin_chain(n, J=0.5, delta=delta, T_left=5.0, T_right=0.5,
+                                 gamma=0.5, master_equation="local").analyze().current("left")
+    xx = [J(n, 0.0) for n in (2, 3, 4, 5)]
+    assert np.allclose(xx, xx[0], rtol=1e-10)
+    zz = [J(n, 2.0) for n in (2, 3, 4, 5)]
+    assert np.all(np.diff(zz) < 0)

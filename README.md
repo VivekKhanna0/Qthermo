@@ -247,6 +247,16 @@ linear ramp, and full finite-time simulations (dots) land on the predictions
 (dashed).</td>
 </tr>
 <tr>
+<td colspan="2"><img src="examples/figures/transport_scaling.png" alt="heat transport scaling in spin chains"></td>
+</tr>
+<tr>
+<td colspan="2"><b>Ballistic or not</b> (<code>transport_scaling.py</code>).
+Boundary-driven XXZ chains up to 7 spins (128 levels, seconds each). The XX
+chain's current is independent of length to 12 digits, and its interior
+temperature profile is flat (ballistic). The zz term makes the current fall
+roughly as 1/N and a gradient build up.</td>
+</tr>
+<tr>
 <td colspan="2"><img src="examples/figures/driven_machine.png" alt="Floquet heat machine"></td>
 </tr>
 <tr>

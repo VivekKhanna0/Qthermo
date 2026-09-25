@@ -442,3 +442,13 @@ def _floquet_static():
     s = analyze(H, [davies_bath(H, sigma_x, 2.0, gamma=0.3, name="hot"),
                     davies_bath(H, sigma_x, 0.5, gamma=0.7, name="cold")])
     return abs(f.current("hot") - s.current("hot")), 0.0
+
+
+@benchmark("boundary-driven XX chain: J(N=6) / J(N=2)",
+           "= 1 exactly (ballistic transport); cf. Karevski & Platini, PRL 102, 207207 (2009)",
+           tolerance=1e-10, group="continuous machines")
+def _xx_ballistic():
+    from .models import spin_chain
+    J = [spin_chain(n, J=0.5, delta=0.0, T_left=5.0, T_right=0.5, gamma=0.5,
+                    master_equation="local").analyze().current("left") for n in (2, 6)]
+    return J[1] / J[0], 1.0
