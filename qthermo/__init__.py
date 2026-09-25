@@ -86,6 +86,12 @@ from .fluctuations import (
     jump_energy,
     scaled_cgf,
 )
+from .strong_coupling import (
+    mean_force_state,
+    rc_convergence,
+    reaction_coordinate_model,
+    ultrastrong_limit_state,
+)
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
 __version__ = "0.3.0"
@@ -122,5 +128,7 @@ __all__ = [
     "heat_flow_map", "HeatFlowMap", "virtual_temperature", "concurrence",
     "negativity", "correlation_matrices",
     "current_statistics", "CurrentStatistics", "scaled_cgf", "jump_energy",
+    "reaction_coordinate_model", "mean_force_state", "ultrastrong_limit_state",
+    "rc_convergence",
     "__version__",
 ]

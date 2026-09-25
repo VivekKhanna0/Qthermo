@@ -211,3 +211,38 @@ def _tur_maser():
     m = three_level_maser(1.0, 3.0, T_c=1.0, T_h=200.0, drive=0.05,
                           gamma_c=0.05, gamma_h=0.001)
     return current_statistics(m, {"hot": "energy", "cold": "energy"}).tur_ratio, 2.0
+
+
+# --- strong coupling ----------------------------------------------------------
+
+@benchmark("mean-force state: weak-coupling correction scaling d(2lam)/d(lam)",
+           "= 4: O(lam^2) deviation from Gibbs; Cresser & Anders, PRL 127, 250601 (2021)",
+           tolerance=0.02, relative=True, group="strong coupling")
+def _mfgs_weak():
+    from .steady import trace_distance
+    from .strong_coupling import mean_force_state
+    H, G = qubit_hamiltonian(1.0), thermal_state(qubit_hamiltonian(1.0), 0.5)
+    d1 = trace_distance(mean_force_state(H, sigma_x, 0.5, 0.01, 2.0, 40), G)
+    d2 = trace_distance(mean_force_state(H, sigma_x, 0.5, 0.02, 2.0, 40), G)
+    return d2 / d1, 4.0
+
+
+@benchmark("mean-force state at lam=4 vs ultrastrong limit (trace distance)",
+           "-> 0; Cresser & Anders, PRL 127, 250601 (2021)",
+           kind="upper", tolerance=0.02, group="strong coupling")
+def _mfgs_ultrastrong():
+    from .steady import trace_distance
+    from .strong_coupling import mean_force_state, ultrastrong_limit_state
+    H = qubit_hamiltonian(1.0)
+    return trace_distance(mean_force_state(H, sigma_x, 0.5, 4.0, 2.0, 60),
+                          ultrastrong_limit_state(H, sigma_x, 0.5)), 0.0
+
+
+@benchmark("reaction-coordinate model: steady state vs Gibbs of H_ext",
+           "Davies fixed point of the mapped model; Strasberg et al., NJP 18, 073007 (2016)",
+           tolerance=1e-10, group="strong coupling")
+def _rc_gibbs():
+    from .strong_coupling import reaction_coordinate_model
+    m = reaction_coordinate_model(qubit_hamiltonian(1.0), sigma_x, 0.5, lam=0.5,
+                                  Omega=2.0, n_levels=10)
+    return np.max(np.abs(m.analyze().rho - thermal_state(m.H, 0.5))), 0.0

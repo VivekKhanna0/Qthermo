@@ -60,34 +60,62 @@ def _collect_c_ops(baths) -> list[np.ndarray]:
     return c_ops
 
 
+def _jump_sum_dense(ops, dim) -> np.ndarray:
+    """``sum_k conj(A_k) (x) A_k`` as one matrix product."""
+    stack = np.array(ops, dtype=complex).reshape(len(ops), dim * dim)
+    gram = stack.conj().T @ stack                      # [(a,b), (c,d)]
+    return (gram.reshape(dim, dim, dim, dim)
+            .transpose(0, 2, 1, 3).reshape(dim * dim, dim * dim))
+
+
+def _jump_sum_sparse(ops, dim):
+    """``sum_k conj(A_k) (x) A_k`` assembled once in COO form."""
+    rows, cols, vals = [], [], []
+    for op in ops:
+        coo = sp.coo_matrix(op)
+        r, c, v = coo.row, coo.col, coo.data
+        rows.append((r[:, None] * dim + r[None, :]).ravel())
+        cols.append((c[:, None] * dim + c[None, :]).ravel())
+        vals.append((v.conj()[:, None] * v[None, :]).ravel())
+    if not rows:
+        return sp.csr_matrix((dim * dim, dim * dim), dtype=complex)
+    return sp.csr_matrix((np.concatenate(vals),
+                          (np.concatenate(rows), np.concatenate(cols))),
+                         shape=(dim * dim, dim * dim))
+
+
 def liouvillian(H, c_ops=(), sparse: bool | None = None):
     """Liouvillian superoperator in column-stacking convention.
 
     ``vec(d rho / dt) = L @ vec(rho)`` with ``vec`` stacking columns
     (``rho.reshape(-1, order="F")``). ``c_ops`` may contain :class:`Bath`
     objects, bare operators, or both. Returns a sparse matrix when the system
-    dimension exceeds 16 (or when ``sparse=True``).
+    dimension exceeds 40 (or when ``sparse=True``).
     """
     H = check_hermitian(_as_matrix(H))
     dim = H.shape[0]
     ops = _collect_c_ops(c_ops)
-    if sparse is None:
-        sparse = dim > 16
-    kron = sp.kron if sparse else np.kron
-    eye = sp.identity(dim, format="csr", dtype=complex) if sparse else np.eye(dim)
-    wrap = sp.csr_matrix if sparse else np.asarray
-
-    H_ = wrap(H)
-    L = -1j * (kron(eye, H_) - kron(H_.T, eye))
     for op in ops:
         if op.shape != H.shape:
             raise QThermoError(
                 f"collapse operator has shape {op.shape}, Hamiltonian has "
                 f"shape {H.shape}")
-        A = wrap(op)
-        AdA = wrap(op.conj().T @ op)
-        L = L + kron(A.conj(), A) - 0.5 * kron(eye, AdA) - 0.5 * kron(AdA.T, eye)
-    return sp.csr_matrix(L) if sparse else L
+    if sparse is None:
+        sparse = dim > 40
+    decay = sum((op.conj().T @ op for op in ops), np.zeros_like(H))
+    K = -1j * H - 0.5 * decay          # rho -> K rho + rho K^dag + jumps
+    if sparse:
+        eye = sp.identity(dim, format="csr", dtype=complex)
+        K_ = sp.csr_matrix(K)
+        L = sp.kron(eye, K_) + sp.kron(K_.conj(), eye)
+        if ops:
+            L = L + _jump_sum_sparse(ops, dim)
+        return sp.csr_matrix(L)
+    eye = np.eye(dim)
+    L = np.kron(eye, K) + np.kron(K.conj(), eye)
+    if ops:
+        L = L + _jump_sum_dense(ops, dim)
+    return L
 
 
 def _null_dimension(L_dense: np.ndarray, tol: float) -> tuple[int, np.ndarray]:
@@ -114,36 +142,59 @@ def steady_state(H, baths=(), initial_state=None, check_unique: bool = True,
     L = liouvillian(H, baths)
     dense = not sp.issparse(L)
 
-    degenerate = False
-    if check_unique and dim <= 32:
-        L_dense = L if dense else L.toarray()
-        null_dim, _ = _null_dimension(L_dense, tol)
-        degenerate = null_dim > 1
-        if degenerate and initial_state is None:
-            raise QThermoError(
-                f"the steady state is not unique ({null_dim} independent "
-                "stationary states). Something is conserved -- often identical "
-                "sites coupled to a common bath, or a site with no path to any "
-                "bath. Pass initial_state=... to get the steady state that "
-                "state relaxes to.")
-
-    if degenerate:
-        return _relaxed_state(L if dense else L.toarray(), initial_state, dim, tol)
-
     trace_row = _vec(np.eye(dim)).conj()
     rhs = np.zeros(dim * dim, dtype=complex)
     rhs[0] = 1.0
-    if dense:
-        A = np.array(L, dtype=complex)
+
+    # Replacing one equation of L rho = 0 by the trace condition gives a
+    # matrix that is singular exactly when the steady state is not unique,
+    # so its conditioning is the uniqueness test -- no eigendecomposition.
+    v, singular = _solve_with_trace_row(L, trace_row, rhs, dense)
+    degenerate = check_unique and singular
+    if degenerate:
+        if initial_state is None:
+            count = ""
+            if dim <= 16:
+                null_dim, _ = _null_dimension(L if dense else L.toarray(), tol)
+                count = f" ({null_dim} independent stationary states)"
+            raise QThermoError(
+                f"the steady state is not unique{count}. Something is "
+                "conserved -- often identical sites coupled to a common bath, "
+                "or a site with no path to any bath. Pass initial_state=... to "
+                "get the steady state that state relaxes to.")
+        return _relaxed_state(L if dense else L.toarray(), initial_state, dim, tol)
+
+    if singular:                   # uniqueness check disabled: best effort
+        A = (L.toarray() if not dense else np.array(L, dtype=complex))
         A[0, :] = trace_row
-        v = np.linalg.solve(A, rhs)
-    else:
-        A = sp.lil_matrix(L)
-        A[0, :] = trace_row
-        v = spla.spsolve(sp.csc_matrix(A), rhs)
+        v = np.linalg.lstsq(A, rhs, rcond=None)[0]
     rho = _unvec(v, dim)
     rho = 0.5 * (rho + rho.conj().T)
     return rho / np.trace(rho).real
+
+
+def _solve_with_trace_row(L, trace_row, rhs, dense, rcond_min=1e-13):
+    """Solve the trace-constrained steady-state system; flag singularity."""
+    import scipy.linalg as sla
+    if dense:
+        A = np.array(L, dtype=complex)
+        A[0, :] = trace_row
+        lu, piv = sla.lu_factor(A, check_finite=False)
+        anorm = np.max(np.sum(np.abs(A), axis=0))
+        rcond, _ = sla.lapack.zgecon(lu, anorm, norm="1")
+        if rcond < rcond_min:
+            return None, True
+        return sla.lu_solve((lu, piv), rhs, check_finite=False), False
+    A = sp.lil_matrix(L)
+    A[0, :] = trace_row
+    try:
+        factor = spla.splu(sp.csc_matrix(A))
+    except RuntimeError:           # exactly singular
+        return None, True
+    diag = np.abs(factor.U.diagonal())
+    if diag.min() < rcond_min * diag.max():
+        return None, True
+    return factor.solve(rhs), False
 
 
 def _relaxed_state(L: np.ndarray, rho0, dim: int, tol: float) -> np.ndarray:
