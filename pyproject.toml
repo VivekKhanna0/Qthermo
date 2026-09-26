@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qthermo"
-version = "0.6.0"
+version = "0.7.0"
 description = "Heat, work and entropy for open quantum systems, with the modelling traps checked and published results reproduced"
 readme = "README.md"
 requires-python = ">=3.10"

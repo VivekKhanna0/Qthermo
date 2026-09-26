@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.7.0
 
 - **Pick a paper and run it:** `python -m qthermo` lists five reproduced
   results, and `python -m qthermo all` runs them in about 15 s. The papers are
