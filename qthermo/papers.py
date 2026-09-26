@@ -19,7 +19,9 @@ import numpy as np
 
 from .validation import QThermoError
 
-__all__ = ["Reproduction", "local_vs_global", "exact_oscillator_current"]
+__all__ = ["Reproduction", "Comparison", "PAPERS", "local_vs_global",
+           "exact_oscillator_current", "absorption_fridge", "maser",
+           "cold_to_hot", "szilard", "run"]
 
 
 @dataclass
@@ -223,3 +225,123 @@ def local_vs_global(couplings=None, detuning: float = 0.0, gamma: float = 0.02,
         reference="Hofer et al., NJP 19, 123037 (2017); Gonzalez et al., "
                   "OSID 24, 1740010 (2017)",
         parameter="g", values=couplings, curves=curves, exact=exact, notes=notes)
+
+
+@dataclass
+class Comparison:
+    """qthermo's numbers next to the paper's formula, setting by setting."""
+
+    title: str
+    reference: str
+    claim: str
+    parameter: str
+    rows: list                     # (setting, qthermo value, paper value)
+    tolerance: float = 1e-8
+    notes: list = field(default_factory=list)
+
+    @property
+    def agrees(self) -> bool:
+        return all(abs(q - p) <= self.tolerance * max(1.0, abs(p)) for _, q, p in self.rows)
+
+    def report(self) -> str:
+        lines = [self.title, f"reference: {self.reference}", f"claim:     {self.claim}", "",
+                 f"{self.parameter:>14}  {'qthermo':>14}  {'paper':>14}  match"]
+        for setting, q, p in self.rows:
+            ok = abs(q - p) <= self.tolerance * max(1.0, abs(p))
+            lines.append(f"{setting:>14}  {q:>14.10f}  {p:>14.10f}  {'yes' if ok else 'NO'}")
+        lines += ["", "reproduced" if self.agrees else "NOT reproduced"] + self.notes
+        return "\n".join(lines)
+
+
+def absorption_fridge(omega_h_values=(2.0, 3.0, 4.0, 6.0)) -> Comparison:
+    """The smallest refrigerator: three qubits, no work input, cooling by heat.
+
+    Linden, Popescu & Skrzypczyk (PRL 105, 130401 (2010)) showed that at tight
+    coupling its coefficient of performance is exactly ``w_c / w_h``.
+    """
+    from .models import absorption_refrigerator
+    rows = [(f"w_h = {w:g}", absorption_refrigerator(omega_c=1.0, omega_h=w).analyze().cop("cold", "hot"),
+             1.0 / w) for w in omega_h_values]
+    return Comparison("Three-qubit absorption refrigerator",
+                      "Linden, Popescu & Skrzypczyk, PRL 105, 130401 (2010)",
+                      "cooling efficiency (COP) = w_c / w_h", "setting", rows)
+
+
+def maser(omega_h_values=(2.0, 3.0, 5.0)) -> Comparison:
+    """The first quantum heat engine: a three-level maser between two baths.
+
+    Scovil & Schulz-DuBois (PRL 2, 262 (1959)): efficiency ``1 - w_c / w_h``.
+    """
+    from .models import three_level_maser
+    rows = [(f"w_h = {w:g}", three_level_maser(omega_c=1.0, omega_h=w).analyze().efficiency("hot"),
+             1.0 - 1.0 / w) for w in omega_h_values]
+    return Comparison("Three-level maser heat engine",
+                      "Scovil & Schulz-DuBois, PRL 2, 262 (1959)",
+                      "efficiency = 1 - w_c / w_h", "setting", rows)
+
+
+def cold_to_hot() -> Comparison:
+    """The local master equation can make heat flow from cold to hot.
+
+    Levy & Kosloff (EPL 107, 20004 (2014)): two detuned, coupled qubits under
+    local baths. Counting heat with the full Hamiltonian, heat flows from the
+    cold bath into the hot one with no work input, so the entropy production
+    rate is negative -- a second-law violation. It is an artefact: counting
+    heat with the bare Hamiltonian (the coupling then does work; De Chiara et
+    al., NJP 20, 113024 (2018)) or using global baths gives a non-negative
+    rate. Rows give the sign of the entropy production rate.
+    """
+    import warnings
+    from .models import two_qubit_heat_valve
+    local = two_qubit_heat_valve(master_equation="local")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        naive = local.analyze(energy=None)
+    fixed = local.analyze()
+    glob = two_qubit_heat_valve(master_equation="global").analyze()
+    rows = [(name, float(np.sign(r.entropy_production_rate)), expected)
+            for name, r, expected in [("local, full H", naive, -1.0),
+                                      ("local, bare H", fixed, 1.0),
+                                      ("global", glob, 1.0)]]
+    return Comparison("Heat flowing from cold to hot under the local master equation",
+                      "Levy & Kosloff, EPL 107, 20004 (2014)",
+                      "entropy production < 0 (second law violated) for the naive local model",
+                      "model", rows,
+                      notes=[f"hot-bath current, local with full H: {naive.current('hot'):+.3e} "
+                             "(heat flows into the hot bath with no work input)",
+                             "entropy production rates: " + ", ".join(
+                                 f"{n} {r.entropy_production_rate:+.3e}" for n, r in
+                                 [("local/full H", naive), ("local/bare H", fixed), ("global", glob)])])
+
+
+def szilard(errors=(0.0, 0.05, 0.1, 0.25)) -> Comparison:
+    """Work from information: a Szilard engine with a noisy measurement.
+
+    Sagawa & Ueda (PRL 100, 080403 (2008)) bound the work extracted by
+    feedback by ``T I``, the temperature times the information gained;
+    optimal protocols (Horowitz & Parrondo, NJP 13, 123019 (2011)) reach it.
+    Rows give work / (T I).
+    """
+    from .information import szilard_engine
+    rows = [(f"error = {e:g}", (lambda r: r.work_extracted / r.bound)(szilard_engine(temperature=1.0, error=e)),
+             1.0) for e in errors]
+    return Comparison("Szilard engine with measurement errors",
+                      "Sagawa & Ueda, PRL 100, 080403 (2008); Horowitz & Parrondo, NJP 13, 123019 (2011)",
+                      "extracted work = T x (information gained)", "setting", rows, tolerance=1e-6)
+
+
+PAPERS = {
+    "fridge": (absorption_fridge, "Linden et al. 2010: the smallest refrigerator"),
+    "maser": (maser, "Scovil & Schulz-DuBois 1959: the first quantum heat engine"),
+    "cold-to-hot": (cold_to_hot, "Levy & Kosloff 2014: heat flowing from cold to hot"),
+    "szilard": (szilard, "Sagawa & Ueda 2008: work from information"),
+    "local-vs-global": (lambda: local_vs_global(detuning=0.1),
+                        "Hofer et al. 2017: which master equation is right?"),
+}
+
+
+def run(name: str):
+    """Run one reproduction by its short name (see ``PAPERS``)."""
+    if name not in PAPERS:
+        raise QThermoError(f"unknown paper {name!r}; choose from {sorted(PAPERS)}")
+    return PAPERS[name][0]()

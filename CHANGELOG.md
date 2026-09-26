@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.0
+
+- **Pick a paper and run it:** `python -m qthermo` lists five reproduced
+  results, and `python -m qthermo all` runs them in about 15 s. The papers are
+  Linden et al. 2010, Scovil & Schulz-DuBois 1959, Levy & Kosloff 2014,
+  Sagawa & Ueda 2008 and Hofer et al. 2017. The same results are available
+  from Python as `qt.papers.run(name)`.
+- **README rewritten** in plain language: try it, build your own machine,
+  proof, limits and feedback. The full tour moved to `docs/guide.md`, and
+  both pages' examples are run by the tests.
+
 ## 0.6.0
 
 - **Redfield baths:** `redfield_bath`, and `master_equation="redfield"` in

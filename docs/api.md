@@ -90,10 +90,22 @@ Published results, reproduced in one call.
 
 - **`class papers.Reproduction(title: 'str', reference: 'str', parameter: 'str', values: 'np.ndarray', curves: 'dict', exact: 'np.ndarray...)`**  
   A reproduced result: curves from each method next to the reference.
+- **`class papers.Comparison(title: 'str', reference: 'str', claim: 'str', parameter: 'str', rows: 'list', tolerance: 'float' = 1e-08, ...)`**  
+  qthermo's numbers next to the paper's formula, setting by setting.
 - **`papers.local_vs_global(couplings=None, detuning: 'float' = 0.0, gamma: 'float' = 0.02, T_hot: 'float' = 0.5, T_cold: 'float' = 0....)`**  
   Which master equation gives the right heat current? Checked against exact.
 - **`papers.exact_oscillator_current(omega1: 'float', omega2: 'float', g: 'float', gamma: 'float', T_hot: 'float', T_cold: 'float') -> 'float'`**  
   Exact heat current through two coupled oscillators between two baths.
+- **`papers.absorption_fridge(omega_h_values=(2.0, 3.0, 4.0, 6.0)) -> 'Comparison'`**  
+  The smallest refrigerator: three qubits, no work input, cooling by heat.
+- **`papers.maser(omega_h_values=(2.0, 3.0, 5.0)) -> 'Comparison'`**  
+  The first quantum heat engine: a three-level maser between two baths.
+- **`papers.cold_to_hot() -> 'Comparison'`**  
+  The local master equation can make heat flow from cold to hot.
+- **`papers.szilard(errors=(0.0, 0.05, 0.1, 0.25)) -> 'Comparison'`**  
+  Work from information: a Szilard engine with a noisy measurement.
+- **`papers.run(name: 'str')`**  
+  Run one reproduction by its short name (see ``PAPERS``).
 
 ## Where the heat goes
 
