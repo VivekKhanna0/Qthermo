@@ -12,6 +12,7 @@ ROOT = pathlib.Path(__file__).resolve().parent
 SECTIONS = [
     ("Machines and baths", ["models", "baths", "steady"]),
     ("Diagnostics", ["audit"]),
+    ("Paper reproductions (`qthermo.papers`)", ["papers"]),
     ("Where the heat goes", ["network", "subsystems"]),
     ("Fluctuations and statistics", ["fluctuations", "counting", "stochastic"]),
     ("Stroke machines", ["cycle", "engines", "modes"]),
@@ -21,7 +22,7 @@ SECTIONS = [
     ("Quantum batteries", ["batteries"]),
     ("Core quantities, channels, solver", ["core", "channels", "solver"]),
     ("Analysis and plotting", ["analysis", "plotting"]),
-    ("Output, units, validation", ["export", "report", "units", "validation", "benchmarks"]),
+    ("Output, units, validation", ["export", "report", "explorer", "units", "validation", "benchmarks"]),
 ]
 
 

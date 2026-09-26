@@ -18,7 +18,7 @@ from dataclasses import dataclass, field, replace
 
 import numpy as np
 
-from .baths import Bath, davies_bath
+from .baths import Bath, davies_bath, redfield_bath
 from .channels import qubit_hamiltonian, sigma_minus, sigma_plus, sigma_x, sigma_y, sigma_z
 from .steady import SteadyState, analyze, compare_master_equations
 from .subsystems import embed
@@ -34,7 +34,7 @@ __all__ = [
     "build_model",
 ]
 
-_MASTER_EQUATIONS = ("local", "global")
+_MASTER_EQUATIONS = ("local", "global", "redfield")
 
 
 @dataclass
@@ -136,6 +136,9 @@ def _site_bath(H_full, H0, local_site_H, coupling_site, site, dims, T, gamma,
     if master_equation == "global":
         return davies_bath(H_full, coupling, T, gamma=gamma, spectrum=spectrum,
                            name=name, sites=(site,))
+    if master_equation == "redfield":
+        return redfield_bath(H_full, coupling, T, gamma=gamma, spectrum=spectrum,
+                             name=name, sites=(site,))
     # Local: Davies on the bare Hamiltonian restricted to this site. Using H0
     # rather than the single-site H and embedding gives the same operators
     # but keeps degenerate spectator levels grouped correctly.
@@ -395,9 +398,11 @@ def build_model(local_H, interactions=None, baths=(), master_equation: str = "gl
     baths : list of dict
         Each ``{"name", "site", "coupling", "T"}`` plus optional ``"gamma"`` or
         ``"spectrum"``. ``coupling`` acts on that site (unembedded).
-    master_equation : "global" or "local"
+    master_equation : "global", "local" or "redfield"
         Global: Davies baths on the full Hamiltonian. Local: each bath acts
-        through the jump operators of its isolated site.
+        through the jump operators of its isolated site. Redfield: the global
+        construction without the secular approximation, valid in both limits
+        (steady states only; see :func:`qthermo.redfield_bath`).
 
     The model can be rebuilt under the other master equation (``compare()``),
     audited, reported and plotted like the built-in ones.

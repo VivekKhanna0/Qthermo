@@ -1,15 +1,34 @@
 [build-system]
-requires = ["setuptools>=61"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "qthermo"
-version = "0.5.0"
-description = "Thermodynamic analysis for open quantum systems"
+version = "0.6.0"
+description = "Heat, work and entropy for open quantum systems, with the modelling traps checked and published results reproduced"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{name = "Vivek Khanna"}]
+keywords = ["quantum thermodynamics", "open quantum systems", "master equation",
+            "Lindblad", "heat engines", "quantum refrigerators", "physics"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Physics",
+]
 dependencies = ["numpy>=1.23", "scipy>=1.9"]
+
+[project.urls]
+Homepage = "https://github.com/VivekKhanna0/Qthermo"
+Documentation = "https://github.com/VivekKhanna0/Qthermo/blob/main/docs/api.md"
+Changelog = "https://github.com/VivekKhanna0/Qthermo/blob/main/CHANGELOG.md"
+Issues = "https://github.com/VivekKhanna0/Qthermo/issues"
 
 [project.optional-dependencies]
 qutip = ["qutip>=4.7"]

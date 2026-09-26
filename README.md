@@ -12,11 +12,12 @@ hundred levels. It also tells you when the model you wrote down cannot mean
 what you think it means.
 
 ```bash
-pip install "qthermo[plot] @ git+https://github.com/VivekKhanna0/Qthermo"   # numpy, scipy, matplotlib
-python -m qthermo.benchmarks      # 41 checks against published results, ~40 s
+pip install "qthermo[plot]"        # numpy, scipy, matplotlib
+python -m qthermo.benchmarks      # 44 checks against published results, ~40 s
 ```
 
-or, to run the examples and tests, `git clone` the repository and
+For the latest version, `pip install "qthermo[plot] @ git+https://github.com/VivekKhanna0/Qthermo"`.
+To run the examples and tests, `git clone` the repository and
 `pip install -e ".[dev]"`.
 
 **Highlights**, each reproduced by the package and checked in CI:
@@ -31,16 +32,48 @@ or, to run the examples and tests, `git clone` the repository and
   predicted minimum L²/τ to 0.2%.
 - A quantum Szilard engine attains the Sagawa–Ueda bound exactly, and a
   zz-coupled transistor amplifies heat currents 4.8×.
+- Which master equation is right? For coupled oscillators, where the exact
+  answer is known, the global equation is off by 25× at weak coupling and the
+  local one by 10% when detuned. The Redfield bath matches exact to 0.1% in
+  both regimes.
 - Agrees with QuTiP to 1e-16 (steady states) and 1e-10 (dynamics).
 
-**New here?** [`examples/tutorial.ipynb`](examples/tutorial.ipynb) takes one
+**New here?** [`examples/tutorial.ipynb`](https://github.com/VivekKhanna0/Qthermo/blob/main/examples/tutorial.ipynb) takes one
 research question (a two-qubit thermal diode) from a Hamiltonian to publishable
 numbers, including the checks a referee would ask about. It renders on GitHub
 with all outputs.
 
-**Docs:** [physics definitions](docs/physics.md) · [API reference](docs/api.md) ·
-[figure gallery](docs/gallery.md) · [examples](examples/README.md) ·
-[changelog](CHANGELOG.md)
+**Docs:** [physics definitions](https://github.com/VivekKhanna0/Qthermo/blob/main/docs/physics.md) · [API reference](https://github.com/VivekKhanna0/Qthermo/blob/main/docs/api.md) ·
+[figure gallery](https://github.com/VivekKhanna0/Qthermo/blob/main/docs/gallery.md) · [examples](https://github.com/VivekKhanna0/Qthermo/blob/main/examples/README.md) ·
+[changelog](https://github.com/VivekKhanna0/Qthermo/blob/main/CHANGELOG.md)
+
+## Reproduce a paper in 10 lines
+
+A question papers in this field argue about: the *local* and *global* master
+equations give different heat currents, so which one is right? For two
+coupled oscillators the exact answer is known, so each can be graded:
+
+```python
+import qthermo as qt
+
+r = qt.papers.local_vs_global(detuning=0.1)   # Hofer et al., NJP 19, 123037 (2017)
+print(r.report())
+r.plot()
+```
+```
+     local: worst error   10.3%
+    global: worst error    4.0%
+  redfield: worst error    0.0%
+```
+
+<img src="https://raw.githubusercontent.com/VivekKhanna0/Qthermo/main/examples/figures/local_vs_global_exact.png" width="720" alt="local, global and Redfield heat currents against the exact result">
+
+Each standard approximation fails somewhere (top: global, for resonant
+oscillators at weak coupling; bottom: local, for detuned ones). The Redfield
+bath (`qt.redfield_bath`) is right in both cases. The same three baths work on
+any Hamiltonian you write down, so you can run this check on your own model:
+see [Your own model](#your-own-model). The script that draws this figure is
+[`examples/reproduce_local_vs_global.py`](https://github.com/VivekKhanna0/Qthermo/blob/main/examples/reproduce_local_vs_global.py).
 
 ## Thirty seconds
 
@@ -81,7 +114,7 @@ steady-state trace distance: 1.040e-02
 qt.plot_machine(steady)      # the figure below
 ```
 
-<img src="examples/figures/absorption_fridge.png" width="620" alt="heat-flow network of the absorption refrigerator">
+<img src="https://raw.githubusercontent.com/VivekKhanna0/Qthermo/main/examples/figures/absorption_fridge.png" width="620" alt="heat-flow network of the absorption refrigerator">
 
 Baths (squares) and qubits (circles) share one temperature colour scale; each
 qubit is coloured by its **virtual temperature**. The cold qubit is colder
@@ -123,6 +156,7 @@ of them. QuTiP `Qobj`s are accepted anywhere an array is.
 | get currents, entropy production, COP/efficiency of a continuous machine | `qt.analyze(H, baths)` or `model.analyze()` |
 | check my model for known modelling mistakes | `qt.audit(model)` or `qt.audit(H, baths)` |
 | describe my own machine once and get every tool | `qt.build_model(local_H, interactions, baths)` |
+| check which master equation is right for my model | `model.rebuild("redfield").analyze()` against `model.compare()`; see `qt.papers.local_vs_global()` |
 | build baths for a coupled / many-body system | `qt.davies_bath` (global), `qt.local_bath` (local) |
 | know whether local vs global master equations matter | `model.compare()` |
 | see where heat flows inside a multi-qubit machine | `qt.heat_flow_map(steady)`, `qt.plot_machine(steady)` |
@@ -208,8 +242,8 @@ print(qt.audit(qt.models.two_qubit_heat_valve(master_equation="local")))
 
 <table>
 <tr>
-<td width="50%"><img src="examples/figures/local_vs_global.png" alt="local vs global master equation"></td>
-<td width="50%"><img src="examples/figures/tur.png" alt="TUR violation in the maser"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/VivekKhanna0/Qthermo/main/examples/figures/local_vs_global.png" alt="local vs global master equation"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/VivekKhanna0/Qthermo/main/examples/figures/tur.png" alt="TUR violation in the maser"></td>
 </tr>
 <tr>
 <td><b>When the local master equation breaks.</b> Past g ≈ 0.55 it moves heat
@@ -219,8 +253,8 @@ precise than the thermodynamic uncertainty relation allows a classical
 process. Computed exactly, with no sampling.</td>
 </tr>
 <tr>
-<td width="50%"><img src="examples/figures/thermal_transistor.png" alt="quantum thermal transistor"></td>
-<td width="50%"><img src="examples/figures/szilard_engine.png" alt="quantum Szilard engine"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/VivekKhanna0/Qthermo/main/examples/figures/thermal_transistor.png" alt="quantum thermal transistor"></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/VivekKhanna0/Qthermo/main/examples/figures/szilard_engine.png" alt="quantum Szilard engine"></td>
 </tr>
 <tr>
 <td><b>A quantum thermal transistor.</b> The base heat current steers up to
@@ -232,7 +266,7 @@ short by ~1/τ.</td>
 </tr>
 </table>
 
-**[The full gallery: 16 figures, with what each shows →](docs/gallery.md)**, covering
+**[The full gallery: 16 figures, with what each shows →](https://github.com/VivekKhanna0/Qthermo/blob/main/docs/gallery.md)**, covering
 strong coupling, Landauer erasure, optimal protocols, interacting Otto
 engines, entanglement inside a two-qubit engine cycle, operation-mode maps,
 periodically driven machines, transient cooling, transport scaling and
@@ -242,7 +276,7 @@ quantum batteries.
 
 ```bash
 python -m qthermo.benchmarks     # computed value next to the published / analytic one
-python -m pytest                 # ~265 tests, ~90 s
+python -m pytest                 # ~270 tests, ~95 s
 ```
 
 Every benchmark is a number fixed independently of this code: a closed-form
@@ -278,12 +312,12 @@ ok  Gallavotti-Cohen symmetry of heat FCS, 3-qubit chain          1.84228e-15   
 ok  geodesic erasure protocol: excess heat x tau                     0.890737     0.886534  ==
       = L^2 (thermodynamic length); Scandi & Perarnau-Llobet, Quantum 3, 197 (2019)
 ...
-41/41 passed in 36.5 s
+44/44 passed in 39.3 s
 ```
 
 The exact definitions of every computed quantity (sign conventions, which
 energy operator defines heat under local baths, rate conventions of the
-spectral densities, the FCS formulas) are in [docs/physics.md](docs/physics.md).
+spectral densities, the FCS formulas) are in [docs/physics.md](https://github.com/VivekKhanna0/Qthermo/blob/main/docs/physics.md).
 
 ## Stroke machines and trajectories
 
@@ -343,7 +377,9 @@ distributions.
 - **Markovian** master equations (Lindblad form). Non-Markovian and
   strong-coupling effects enter through the reaction-coordinate mapping, which
   is exact for a single-peaked (Brownian) spectral density and approximate
-  otherwise. No HEOM, no Redfield (non-GKLS) equations.
+  otherwise. No HEOM. `redfield_bath` (not of Lindblad form, so positivity is
+  not guaranteed) works for steady states only, not for trajectories,
+  fluctuations or cycles.
 - **Lamb shifts are neglected** in the Davies construction.
 - **Size:** dense or sparse matrices, no tensor networks.
   - Global-bath steady states run to a few hundred levels; the 200-level RC
@@ -370,12 +406,10 @@ problems would help:
 - **The regime between local and global.** With J ≈ γ, neither master
   equation is controlled; the tutorial's thermal diode even changes direction
   between them. A naive "unified" (partially secular) construction was
-  prototyped and gave erratic currents, so it was not shipped. A Bloch–Redfield
-  prototype did better: for two detuned coupled oscillators it matched the
-  exact (Landauer) heat current to within 2%, where the local equation was off
-  by about 10% and the global one by up to 7%. Would a Redfield option (not
-  completely positive) be useful to you, or is there a construction you
-  trust more?
+  prototyped and gave erratic currents, so it was not shipped. `redfield_bath`
+  now matches the exact oscillator current in both limits. Is Redfield what
+  you would trust for coupled *qubits* too, or is there a benchmark where it
+  fails that should be added?
 - **Collective baths.** N qubits coupled to one bath through their total
   spin carry more heat per qubit than N independent ones. At the temperatures
   tried, the gain saturates near 2.6× instead of growing with N. Is there a
@@ -412,7 +446,7 @@ Strasberg et al., NJP 18, 073007 (2016); Cresser & Anders, PRL 127, 250601
 
 ## Citing
 
-See [`CITATION.cff`](CITATION.cff) (GitHub shows a "Cite this repository"
+See [`CITATION.cff`](https://github.com/VivekKhanna0/Qthermo/blob/main/CITATION.cff) (GitHub shows a "Cite this repository"
 button). Please also cite the original papers for the physics you use; each
 benchmark names its source.
 

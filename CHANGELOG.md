@@ -1,6 +1,16 @@
 # Changelog
 
-## Unreleased
+## 0.6.0
+
+- **Redfield baths:** `redfield_bath`, and `master_equation="redfield"` in
+  `build_model` and the built-in models. It is the global construction without
+  the secular approximation, so it stays valid when levels are nearly
+  degenerate. Steady states only.
+- **Paper reproductions:** `qt.papers.local_vs_global()` grades the local,
+  global and Redfield master equations against the exact heat current of two
+  coupled oscillators (Hofer et al. 2017). Global is off by up to 25× for
+  resonant oscillators at weak coupling, local by 10% when detuned, and
+  Redfield by at most 0.1%. There are three new benchmark rows.
 
 - **Your own machine:** `build_model(local_H, interactions, baths, ...)`
   builds a `Model` from site Hamiltonians, couplings and bath specifications.

@@ -57,6 +57,8 @@ def _unvec(v: np.ndarray, dim: int) -> np.ndarray:
 def _collect_c_ops(baths) -> list:
     c_ops = []
     for bath in baths:
+        if isinstance(bath, Bath) and bath.superoperator is not None:
+            continue                     # added separately: _superoperators()
         if isinstance(bath, Bath):
             c_ops.extend(bath.c_ops)
         elif sp.issparse(bath):
@@ -64,6 +66,15 @@ def _collect_c_ops(baths) -> list:
         else:
             c_ops.append(_as_matrix(bath))
     return c_ops
+
+
+def _superoperators(baths):
+    """Sum of the superoperators of Redfield baths (None if there are none)."""
+    total = None
+    for bath in baths:
+        if isinstance(bath, Bath) and bath.superoperator is not None:
+            total = bath.superoperator if total is None else total + bath.superoperator
+    return total
 
 
 def _jump_sum_dense(ops, dim) -> np.ndarray:
@@ -104,7 +115,11 @@ def liouvillian(H, c_ops=(), sparse: bool | None = None):
     dimension exceeds 40 (or when ``sparse=True``).
     """
     H = check_hermitian(_as_matrix(H))
-    return _liouvillian_from_ops(H, _collect_c_ops(c_ops), sparse)
+    L = _liouvillian_from_ops(H, _collect_c_ops(c_ops), sparse)
+    extra = _superoperators(c_ops)
+    if extra is not None:
+        L = sp.csr_matrix(L + extra) if sp.issparse(L) else L + extra.toarray()
+    return L
 
 
 def _liouvillian_from_ops(H, ops, sparse=None):
@@ -159,6 +174,10 @@ def steady_state(H, baths=(), initial_state=None, check_unique: bool = True,
     """
     H = check_hermitian(_as_matrix(H))
     dim = H.shape[0]
+    extra = _superoperators(baths)
+    if extra is not None:
+        return _solve_steady(H, _collect_c_ops(baths), initial_state,
+                             check_unique, tol, extra=extra)
     shared = _shared_eigenbasis(H, baths)
     if shared is not None:
         V, energies = shared
@@ -202,9 +221,11 @@ def _shared_eigenbasis(H, baths):
     return V, energies
 
 
-def _solve_steady(H, ops, initial_state, check_unique, tol):
+def _solve_steady(H, ops, initial_state, check_unique, tol, extra=None):
     dim = H.shape[0]
     L = _liouvillian_from_ops(H, ops)
+    if extra is not None:
+        L = sp.csr_matrix(L + extra) if sp.issparse(L) else L + extra.toarray()
     dense = not sp.issparse(L)
 
     trace_row = _vec(np.eye(dim)).conj()
@@ -264,6 +285,12 @@ def relaxation_time(H, baths, populations_only: bool = False) -> float:
         for op in _collect_c_ops(baths):
             op = op.toarray() if sp.issparse(op) else op
             W += np.abs(V.conj().T @ op @ V) ** 2
+        for bath in baths:
+            if isinstance(bath, Bath) and bath.superoperator is not None:
+                # Redfield: population-to-population block of the superoperator
+                for j in range(H.shape[0]):
+                    rho_j = np.outer(V[:, j], V[:, j].conj())
+                    W[:, j] += np.real(np.diag(V.conj().T @ bath.dissipator(rho_j) @ V))
         np.fill_diagonal(W, 0.0)
         generator = W - np.diag(W.sum(axis=0))
         rates = np.sort(np.abs(np.linalg.eigvals(generator).real))

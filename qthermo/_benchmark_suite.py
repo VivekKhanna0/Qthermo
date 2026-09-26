@@ -509,3 +509,29 @@ def _szilard():
     from .information import szilard_engine
     r = szilard_engine(temperature=1.0, error=0.1)
     return r.work_extracted / r.bound, 1.0
+
+
+def _oscillator_errors(detuning):
+    from .papers import local_vs_global
+    return local_vs_global(couplings=[0.004, 0.02, 0.1], detuning=detuning).errors()
+
+
+@benchmark("Redfield heat current, coupled oscillators: worst relative error vs exact",
+           "exact Landauer current; Hofer et al., NJP 19, 123037 (2017)",
+           kind="upper", tolerance=0.0, group="master equations")
+def _redfield_exact():
+    return max(_oscillator_errors(0.0)["redfield"], _oscillator_errors(0.1)["redfield"]), 0.005
+
+
+@benchmark("global ME, resonant oscillators at g = gamma/5: relative error vs exact",
+           "large: secular approximation fails for near-degenerate levels "
+           "(Hofer et al. 2017)", kind="lower", tolerance=0.0, group="master equations")
+def _global_fails_resonant():
+    return _oscillator_errors(0.0)["global"], 1.0
+
+
+@benchmark("local ME, detuned oscillators: worst relative error vs exact",
+           "~10%: bare site frequencies in the bath rates (Hofer et al. 2017)",
+           kind="lower", tolerance=0.0, group="master equations")
+def _local_fails_detuned():
+    return _oscillator_errors(0.1)["local"], 0.05

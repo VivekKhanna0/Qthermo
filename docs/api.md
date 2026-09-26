@@ -45,6 +45,8 @@ Thermal baths as objects: global (Davies) and local constructions.
   Lindblad dissipator ``sum_L  L rho L^dag - {L^dag L, rho}/2``.
 - **`instantaneous_bath(H_of_t, coupling, temperature: 'float', gamma: 'float' = 1.0, spectrum=None, name: 'str' = 'bath', sites=(...)`**  
   A bath that follows a time-dependent Hamiltonian.
+- **`redfield_bath(H, coupling, temperature: 'float', gamma: 'float' = 1.0, spectrum=None, name: 'str' = 'bath', sites=(), ze...)`**  
+  Bloch-Redfield thermal bath: the Davies bath without the secular approximation.
 
 ### `qthermo.steady`
 
@@ -79,6 +81,19 @@ One call that checks a thermal-machine model for the known traps.
   AuditReport(findings: 'list' = <factory>, steady: 'object' = None)
 - **`audit(source, baths=None, energy=None, fluctuations: 'bool' = True, compare: 'bool' = True) -> 'AuditReport'`**  
   Check a steady-state thermal machine for known modelling traps.
+
+## Paper reproductions (`qthermo.papers`)
+
+### `qthermo.papers`
+
+Published results, reproduced in one call.
+
+- **`class papers.Reproduction(title: 'str', reference: 'str', parameter: 'str', values: 'np.ndarray', curves: 'dict', exact: 'np.ndarray...)`**  
+  A reproduced result: curves from each method next to the reference.
+- **`papers.local_vs_global(couplings=None, detuning: 'float' = 0.0, gamma: 'float' = 0.02, T_hot: 'float' = 0.5, T_cold: 'float' = 0....)`**  
+  Which master equation gives the right heat current? Checked against exact.
+- **`papers.exact_oscillator_current(omega1: 'float', omega2: 'float', g: 'float', gamma: 'float', T_hot: 'float', T_cold: 'float') -> 'float'`**  
+  Exact heat current through two coupled oscillators between two baths.
 
 ## Where the heat goes
 
@@ -431,6 +446,13 @@ A self-contained HTML report of a continuous machine, for sharing.
 
 - **`report(model, path=None, title: 'str | None' = None, fluctuations: 'bool' = True) -> 'str'`**  
   Write (and return) a self-contained HTML report of a ``Model``.
+
+### `qthermo.explorer`
+
+Interactive explorer: drag a parameter, watch the heat flow change.
+
+- **`explorer(build, values, parameter: 'str' = 'parameter', path=None, title: 'str | None' = None, compare: 'bool' = Tr...)`**  
+  Write an interactive HTML explorer of ``build(value) -> Model``.
 
 ### `qthermo.units`
 

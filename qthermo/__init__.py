@@ -47,6 +47,7 @@ from .baths import (
     flat_spectrum,
     local_bath,
     ohmic_spectrum,
+    redfield_bath,
 )
 from .steady import (
     MasterEquationComparison,
@@ -122,7 +123,7 @@ from .models import Model, build_model
 from .explorer import explorer
 from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
 
-__version__ = "0.5.0"
+__version__ = "0.6.0"
 
 
 def __getattr__(name):
@@ -134,6 +135,8 @@ def __getattr__(name):
         from . import plotting
         return getattr(plotting, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+from . import papers
 
 __all__ = [
     "Cycle", "CycleResult", "Stroke", "StrokeResult",
@@ -150,7 +153,7 @@ __all__ = [
     "partial_trace", "embed", "total_correlation", "mutual_information",
     "resolve_stroke", "resolve_cycle", "SiteResult", "SubsystemResult",
     "Bath", "davies_bath", "local_bath", "bohr_decomposition", "dissipator",
-    "flat_spectrum", "ohmic_spectrum",
+    "flat_spectrum", "ohmic_spectrum", "redfield_bath", "papers",
     "analyze", "steady_state", "liouvillian", "SteadyState", "relaxation_time",
     "compare_master_equations", "MasterEquationComparison", "trace_distance",
     "models", "Model", "build_model",
