@@ -42,6 +42,7 @@ __all__ = [
     "ohmic_spectrum",
     "dissipator",
     "instantaneous_bath",
+    "redfield_bath",
 ]
 
 
@@ -71,7 +72,8 @@ class Bath:
     """
 
     def __init__(self, name, c_ops=None, temperature=None, kind="custom",
-                 sites=(), *, eigenbasis=None, eig_ops=None, energies=None):
+                 sites=(), *, eigenbasis=None, eig_ops=None, energies=None,
+                 superoperator=None):
         self.name = name
         self.temperature = check_temperature(temperature, f"bath {name!r} temperature")
         self.kind = kind
@@ -80,6 +82,9 @@ class Bath:
         self.energies = energies
         self.eig_ops = list(eig_ops) if eig_ops is not None else None
         self._c_ops = [_as_matrix(L) for L in c_ops] if c_ops is not None else None
+        self.superoperator = superoperator
+        if superoperator is not None:
+            return
         if not (self._c_ops or self.eig_ops):
             raise QThermoError(
                 f"bath {name!r} has no jump operators. If the coupling "
@@ -92,6 +97,13 @@ class Bath:
     @property
     def c_ops(self) -> list:
         """Jump operators in the computational basis (built lazily)."""
+        if self.superoperator is not None:
+            raise QThermoError(
+                f"bath {self.name!r} is a Redfield bath: it has no jump "
+                "operators, so it works with analyze(), steady_state() and "
+                "liouvillian() but not with tools that need quantum jumps "
+                "(current statistics, trajectories, time evolution, cycles). "
+                "Use davies_bath() or local_bath() for those.")
         if self._c_ops is None:
             V = self.eigenbasis
             self._c_ops = [V @ op.toarray() @ V.conj().T for op in self.eig_ops]
@@ -99,10 +111,14 @@ class Bath:
 
     @property
     def n_ops(self) -> int:
+        if self.superoperator is not None:
+            return 0
         return len(self.eig_ops) if self.eig_ops is not None else len(self._c_ops)
 
     @property
     def dim(self) -> int:
+        if self.superoperator is not None:
+            return int(round(np.sqrt(self.superoperator.shape[0])))
         if self.eigenbasis is not None:
             return self.eigenbasis.shape[0]
         return self._c_ops[0].shape[0]
@@ -110,6 +126,10 @@ class Bath:
     def dissipator(self, rho) -> np.ndarray:
         """This bath's contribution ``D[rho]`` to the master equation."""
         rho = _as_matrix(rho)
+        if self.superoperator is not None:
+            dim = rho.shape[0]
+            out = self.superoperator @ rho.reshape(-1, order="F")
+            return np.asarray(out).reshape((dim, dim), order="F")
         if self.eig_ops is not None:
             V = self.eigenbasis
             rho_e = V.conj().T @ rho @ V
@@ -137,8 +157,9 @@ class Bath:
 
     def __repr__(self) -> str:
         T = "--" if self.temperature is None else f"{self.temperature:g}"
-        return (f"Bath({self.name!r}, kind={self.kind}, T={T}, "
-                f"{self.n_ops} jump operators)")
+        ops = ("Redfield superoperator" if self.superoperator is not None
+               else f"{self.n_ops} jump operators")
+        return f"Bath({self.name!r}, kind={self.kind}, T={T}, {ops})"
 
 
 def dissipator(c_ops, rho) -> np.ndarray:
@@ -393,3 +414,81 @@ def instantaneous_bath(H_of_t, coupling, temperature: float, gamma: float = 1.0,
         return at(float(t))
     baths.temperature = temperature
     return baths
+
+
+def redfield_bath(H, coupling, temperature: float, gamma: float = 1.0,
+                  spectrum=None, name: str = "bath", sites=(),
+                  zero_frequency_rate: float | None = None) -> Bath:
+    """Bloch-Redfield thermal bath: the Davies bath without the secular approximation.
+
+    The global (Davies) bath drops every term that couples transitions with
+    different Bohr frequencies. That is safe when those frequencies are far
+    apart compared with the bath rates, and wrong when two levels are nearly
+    degenerate -- weakly coupled resonant sites, for example, where the
+    Davies steady state carries a heat current even as the coupling goes to
+    zero. The local bath fails the other way round, when sites are strongly
+    coupled or detuned. Redfield keeps all the terms, with the same rates as
+    :func:`davies_bath`:
+
+        D[rho] = [Lambda rho, A] + [A, rho Lambda^dag],
+        <a|Lambda|b> = gamma(E_b - E_a) <a|A|b> / 2
+
+    so it is controlled whenever the bath is weakly coupled, whatever the
+    inter-site coupling. The price: it is not of Lindblad form, so positivity
+    of rho is not guaranteed (violations are of order gamma), and it has no
+    quantum-jump unravelling. Lamb shifts are neglected, as in Davies.
+
+    Parameters are those of :func:`davies_bath`.
+
+    References: Redfield, IBM J. Res. Dev. 1, 19 (1957); Breuer & Petruccione,
+    *The Theory of Open Quantum Systems*, sec. 3.3.
+    """
+    import scipy.sparse as sp
+
+    temperature = check_temperature(temperature, f"bath {name!r} temperature")
+    if temperature is None:
+        raise QThermoError(f"bath {name!r} needs a temperature")
+    H = check_hermitian(_as_matrix(H))
+    A = check_hermitian(_as_matrix(coupling), f"bath {name!r} coupling")
+    if A.shape != H.shape:
+        raise QThermoError(
+            f"coupling operator has shape {A.shape} but the Hamiltonian "
+            f"has shape {H.shape}")
+    J = spectrum if spectrum is not None else flat_spectrum(gamma)
+    energies, V = np.linalg.eigh(H)
+    A_e = V.conj().T @ A @ V
+    scale = max(np.max(np.abs(energies)), 1.0)
+    tol = 1e-9 * scale
+    omega = energies[None, :] - energies[:, None]          # E_b - E_a
+    rates = np.zeros(omega.shape)
+    cache = {}
+    for idx, w in np.ndenumerate(omega):
+        if A_e[idx] == 0:
+            continue
+        key = round(w / tol)
+        if key not in cache:
+            if abs(w) <= tol:
+                rate = zero_frequency_rate
+                if rate is None:
+                    limit = getattr(J, "zero_frequency", None)
+                    rate = limit(temperature) if callable(limit) else 0.0
+            elif w > 0:
+                rate = float(J(w)) * (1.0 + mean_occupation(w, temperature))
+            else:
+                rate = float(J(-w)) * mean_occupation(-w, temperature)
+            cache[key] = rate
+        rates[idx] = cache[key]
+    Lam = V @ (0.5 * rates * A_e) @ V.conj().T
+
+    def clean(M):
+        M = np.where(np.abs(M) > 1e-14 * max(np.max(np.abs(M)), 1e-300), M, 0.0)
+        return sp.csr_matrix(M)
+
+    dim = H.shape[0]
+    I = sp.identity(dim, format="csr", dtype=complex)
+    A_s, L_s = clean(A), clean(Lam)
+    S = (sp.kron(A_s.T, L_s) + sp.kron(L_s.conj(), A_s)
+         - sp.kron(I, clean(A @ Lam)) - sp.kron(clean(Lam.conj().T @ A).T, I))
+    S = sp.csr_matrix(S)
+    return Bath(name, None, temperature, kind="redfield", sites=tuple(sites),
+                superoperator=S)

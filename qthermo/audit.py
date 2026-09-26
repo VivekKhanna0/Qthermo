@@ -96,6 +96,8 @@ def _detailed_balance_temperature(bath: Bath, H) -> float | None:
     ``|L_up|^2 / |L_down|^2 = exp(-w / T)``. Returns the median implied T,
     or None when no such pairs exist.
     """
+    if bath.superoperator is not None:
+        return None
     ops = bath.c_ops
     energies = []
     for L in ops:

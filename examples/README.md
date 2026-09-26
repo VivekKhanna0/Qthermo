@@ -7,6 +7,7 @@ of them on every push.
 | script | question it answers | runtime |
 |---|---|---|
 | [`tutorial.ipynb`](tutorial.ipynb) | Start here: a two-qubit thermal diode from Hamiltonian to publishable numbers, with the checks a referee would ask for | notebook |
+| [`reproduce_local_vs_global.py`](reproduce_local_vs_global.py) | Which master equation gives the right heat current? Local, global and Redfield against the exact result | ~15 s |
 | [`absorption_refrigerator.py`](absorption_refrigerator.py) | How does the three-qubit absorption fridge cool, where does the heat go, and does the master equation matter? | ~2 s |
 | [`local_vs_global.py`](local_vs_global.py) | When does the local master equation violate the second law? | ~2 s |
 | [`uncertainty_relation.py`](uncertainty_relation.py) | Can a quantum machine be more precise than the TUR allows? | ~1 s |

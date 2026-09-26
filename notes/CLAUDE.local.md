@@ -56,8 +56,10 @@ Run `python -m pytest` and `python -m qthermo.benchmarks --quick`. If the public
 API changes, regenerate `docs/api.md` with `python docs/build_api.py`; the README
 code blocks are executed by `tests/test_readme.py`.
 
-## Open question (not shipped)
-Bloch–Redfield bath: a prototype matched the exact heat current of two detuned
-coupled oscillators to within 2% (local ~10% off, global up to 7%). Integrating it
-means a `Bath` that carries a superoperator instead of jump operators, so
-fluctuations, transients and cycles would have to refuse it.
+## Redfield and paper reproductions
+`redfield_bath` (baths.py) is a `Bath` carrying a sparse superoperator instead of
+jump operators; `steady.py` adds it via `_superoperators()`, and its `c_ops`
+raises, so jump-based tools refuse it with a clear message. `papers.py` holds
+reproductions graded against exact references (`local_vs_global`); each also
+has a benchmark row. PyPI release: publishing a GitHub release runs
+`.github/workflows/publish.yml` (trusted publishing).
