@@ -63,3 +63,19 @@ def test_build_model_redfield_between_local_and_global_limits():
     assert abs(s.total_current) < 1e-12
     assert np.isfinite(qt.relaxation_time(red.H, red.baths, populations_only=True))
     assert qt.audit(red).ok
+
+
+@pytest.mark.parametrize("name", ["fridge", "maser", "cold-to-hot", "szilard"])
+def test_formula_papers_reproduce(name):
+    result = qt.papers.run(name)
+    assert result.agrees, result.report()
+
+
+def test_command_line_lists_and_runs(capsys):
+    from qthermo.__main__ import main
+    main([])
+    assert "local-vs-global" in capsys.readouterr().out
+    main(["maser"])
+    assert "reproduced" in capsys.readouterr().out
+    with pytest.raises(QThermoError):
+        qt.papers.run("nope")
