@@ -78,11 +78,14 @@ def main():
     print("  (agreement here is the check that the unravelling is faithful)")
 
     failure = ensemble.probability_of("cold_iso", lambda q: q <= 0)
+    exact = qt.cycle_counting(cycle, {"cold_iso": "quanta"}, rho_start=rho_limit)
+    exact_failure = exact.probability(lambda n: n <= 0)
     print(f"\n  spread (std dev)              {np.std(cold_trajectories):.4f}")
-    print(f"  P(no heat drawn from cold bath) = {failure:.3f}")
-    print("  -- on average this cycle cools. On any individual run it fails to")
-    print("     extract heat from the cold bath about half the time. The master")
-    print("     equation reports only the mean and cannot show this.")
+    print(f"  P(no heat drawn from cold bath) = {failure:.3f} (trajectories), "
+          f"{exact_failure:.4f} (exact)")
+    print(f"  -- on average this cycle cools. On any individual run it fails to")
+    print(f"     extract heat from the cold bath {exact_failure:.0%} of the time. The")
+    print("     master equation reports only the mean and cannot show this.")
 
     counts, edges = ensemble.histogram("cold_iso", bins=12)
     peak = counts.max()

@@ -39,6 +39,25 @@ from .analysis import (
     scan_2d,
     sweep,
 )
+from .baths import (
+    Bath,
+    bohr_decomposition,
+    davies_bath,
+    dissipator,
+    flat_spectrum,
+    local_bath,
+    ohmic_spectrum,
+)
+from .steady import (
+    MasterEquationComparison,
+    SteadyState,
+    analyze,
+    compare_master_equations,
+    liouvillian,
+    relaxation_time,
+    steady_state,
+    trace_distance,
+)
 from .cycle import Cycle, CycleResult, Stroke, StrokeResult
 from .solver import evolve, lindbladian
 from .validation import QThermoError
@@ -54,13 +73,64 @@ from .subsystems import (
     total_correlation,
 )
 
-__version__ = "0.2.0"
+from .network import (
+    HeatFlowMap,
+    concurrence,
+    correlation_matrices,
+    heat_flow_map,
+    negativity,
+    site_dynamics,
+    virtual_temperature,
+)
+from .fluctuations import (
+    CurrentStatistics,
+    current_statistics,
+    jump_energy,
+    scaled_cgf,
+)
+from .strong_coupling import (
+    mean_force_state,
+    rc_convergence,
+    reaction_coordinate_model,
+    ultrastrong_limit_state,
+)
+from .information import (
+    ErasureResult,
+    FeedbackResult,
+    szilard_engine,
+    geodesic_schedule,
+    landauer_bound,
+    landauer_erasure,
+    predicted_excess,
+    thermodynamic_length,
+)
+from .baths import instantaneous_bath
+from .engines import OttoLimit, adiabatic_pairing, ideal_otto, otto_cycle
+from .audit import AuditReport, Finding, audit
+from .counting import CycleCounting, cycle_counting
+from .modes import MODES, classify, mode_map
+from . import batteries  # noqa: E402  (quantum batteries: qthermo.batteries.*)
+from .batteries import ergotropy_split, locked_ergotropy
+from .geometry import OptimalSchedule, excess_work, friction, optimal_schedule
+from .export import export, load, save
+from .floquet import DrivenBath, FloquetSteadyState, floquet_analyze, floquet_states, window_spectrum
+from .units import BOLTZMANN, HBAR, PLANCK, LabUnits
+from .transient import TransientResult, product_thermal_state, transient
+from .response import ThermalResponse, response
+from .report import report
+from .models import Model, build_model
+from .explorer import explorer
+from . import models  # noqa: E402  (canonical machines: qthermo.models.*)
+
+__version__ = "0.5.0"
 
 
 def __getattr__(name):
     """Lazily expose plotting so matplotlib stays an optional dependency."""
     if name in ("plot_cycle", "plot_sweep", "plot_scan",
-                "plot_distribution", "plot_dashboard"):
+                "plot_distribution", "plot_dashboard",
+                "plot_heat_network", "plot_correlations", "plot_machine",
+                "plot_mode_map", "plot_site_dynamics", "plot_bloch_paths"):
         from . import plotting
         return getattr(plotting, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
@@ -79,5 +149,28 @@ __all__ = [
     "sweep", "scan_2d", "compare_channels", "SweepResult", "ScanResult",
     "partial_trace", "embed", "total_correlation", "mutual_information",
     "resolve_stroke", "resolve_cycle", "SiteResult", "SubsystemResult",
+    "Bath", "davies_bath", "local_bath", "bohr_decomposition", "dissipator",
+    "flat_spectrum", "ohmic_spectrum",
+    "analyze", "steady_state", "liouvillian", "SteadyState", "relaxation_time",
+    "compare_master_equations", "MasterEquationComparison", "trace_distance",
+    "models", "Model", "build_model",
+    "heat_flow_map", "HeatFlowMap", "virtual_temperature", "concurrence",
+    "negativity", "correlation_matrices", "site_dynamics",
+    "current_statistics", "CurrentStatistics", "scaled_cgf", "jump_energy",
+    "reaction_coordinate_model", "mean_force_state", "ultrastrong_limit_state",
+    "rc_convergence",
+    "landauer_erasure", "landauer_bound", "ErasureResult", "geodesic_schedule",
+    "thermodynamic_length", "predicted_excess", "instantaneous_bath",
+    "ideal_otto", "otto_cycle", "OttoLimit", "adiabatic_pairing",
+    "audit", "AuditReport", "Finding",
+    "cycle_counting", "CycleCounting",
+    "classify", "mode_map", "MODES",
+    "batteries", "ergotropy_split", "locked_ergotropy",
+    "friction", "optimal_schedule", "OptimalSchedule", "excess_work",
+    "export", "save", "load",
+    "floquet_analyze", "floquet_states", "DrivenBath", "FloquetSteadyState",
+    "window_spectrum", "LabUnits", "PLANCK", "HBAR", "BOLTZMANN",
+    "transient", "TransientResult", "product_thermal_state",
+    "response", "ThermalResponse", "report", "explorer", "szilard_engine", "FeedbackResult",
     "__version__",
 ]
