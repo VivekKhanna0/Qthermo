@@ -32,7 +32,8 @@ from .core import _as_matrix
 from .cycle import Cycle, Stroke
 from .validation import QThermoError, check_hermitian
 
-__all__ = ["OttoLimit", "ideal_otto", "otto_cycle", "adiabatic_pairing"]
+__all__ = ["OttoLimit", "ideal_otto", "otto_cycle", "adiabatic_pairing",
+           "MaxWorkOtto", "otto_max_work"]
 
 
 @dataclass
@@ -180,6 +181,75 @@ def ideal_otto(H_cold, H_hot, T_cold: float, T_hot: float, path=None,
                        T_cold=T_cold, T_hot=T_hot)
     result.crossings = _has_crossings(perm)
     return result
+
+
+@dataclass
+class MaxWorkOtto:
+    """Quasi-static Otto cycle tuned to the compression that maximises work."""
+
+    ratio: float           # w_c / w_h at maximum work
+    work: float            # net work done BY the medium per cycle (> 0)
+    efficiency: float      # 1 - ratio
+    T_cold: float
+    T_hot: float
+
+    @property
+    def carnot_efficiency(self) -> float:
+        return 1.0 - self.T_cold / self.T_hot
+
+    @property
+    def curzon_ahlborn(self) -> float:
+        """``1 - sqrt(T_c / T_h)``, the classical efficiency at maximum output."""
+        return 1.0 - float(np.sqrt(self.T_cold / self.T_hot))
+
+    def report(self) -> str:
+        return "\n".join([
+            "Otto cycle at maximum work",
+            f"  compression w_c/w_h : {self.ratio:.6f}",
+            f"  work per cycle      : {self.work:.6e}",
+            f"  efficiency          : {self.efficiency:.6f}",
+            f"  Curzon-Ahlborn      : {self.curzon_ahlborn:.6f}",
+            f"  Carnot              : {self.carnot_efficiency:.6f}"])
+
+
+def otto_max_work(H_hot, T_cold: float, T_hot: float,
+                  xatol: float = 1e-12) -> MaxWorkOtto:
+    """Efficiency of the quasi-static Otto cycle at maximum work per cycle.
+
+    The cold Hamiltonian is ``r * H_hot``: every gap is compressed by the same
+    ratio ``r = w_c / w_h``, so the efficiency is exactly ``1 - r`` and the
+    only question is which ``r`` extracts the most work. Carnot efficiency
+    needs ``r = T_c / T_h``, where the work vanishes; maximising work instead
+    trades efficiency for output.
+
+    The answer depends on the working medium. For a harmonic oscillator
+    (truncated with enough levels) at high temperature it is the
+    Curzon-Ahlborn value ``1 - sqrt(T_c / T_h)`` (Leff, Am. J. Phys. 55, 602
+    (1987); Rezek & Kosloff, New J. Phys. 8, 83 (2006)). For a single qubit
+    at high temperature it is ``eta_C / 2``. In the quantum regime, where
+    ``T`` is small compared with the gaps, both rise above Curzon-Ahlborn
+    (Deffner, Entropy 20, 875 (2018)).
+
+    This is maximum work per cycle, not maximum power: the isochores
+    thermalise fully, so there is no cycle time to divide by.
+    """
+    from scipy.optimize import minimize_scalar
+
+    H_h = check_hermitian(_as_matrix(H_hot), "H_hot")
+    if not 0 < T_cold < T_hot:
+        raise QThermoError("need 0 < T_cold < T_hot")
+
+    def work_on_medium(r):
+        return ideal_otto(r * H_h, H_h, T_cold, T_hot,
+                          follow_crossings=False).work
+
+    res = minimize_scalar(work_on_medium, bounds=(1e-9, 1.0 - 1e-12),
+                          method="bounded", options={"xatol": xatol})
+    if not res.fun < 0:
+        raise QThermoError("no compression ratio runs this medium as an engine")
+    r = float(res.x)
+    return MaxWorkOtto(ratio=r, work=-float(res.fun), efficiency=1.0 - r,
+                       T_cold=T_cold, T_hot=T_hot)
 
 
 def _require_thermalization(H, baths, label):

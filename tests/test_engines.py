@@ -136,3 +136,27 @@ def test_relaxation_time_of_a_qubit_is_the_inverse_T1_rate():
     assert np.isclose(qt.relaxation_time(H, [bath]), 2 / (gamma * (1 + 2 * n)))
     assert np.isclose(qt.relaxation_time(H, [bath], populations_only=True),
                       1 / (gamma * (1 + 2 * n)))
+
+
+def test_max_work_oscillator_is_curzon_ahlborn_at_high_temperature():
+    """Leff (1987); Rezek & Kosloff, NJP 8, 83 (2006)."""
+    H = np.diag(np.arange(800.0))           # truncated oscillator, w_h = 1
+    best = qt.otto_max_work(H, T_cold=10.0, T_hot=40.0)
+    assert np.isclose(best.efficiency, best.curzon_ahlborn, atol=1e-4)
+
+
+def test_max_work_qubit_is_half_carnot_at_high_temperature():
+    best = qt.otto_max_work(qt.qubit_hamiltonian(1.0), T_cold=10.0, T_hot=40.0)
+    assert np.isclose(best.efficiency, best.carnot_efficiency / 2, atol=1e-4)
+
+
+def test_max_work_exceeds_curzon_ahlborn_in_the_quantum_regime():
+    """Deffner, Entropy 20, 875 (2018): CA is not universal at max output."""
+    for H in (np.diag(np.arange(60.0)), qt.qubit_hamiltonian(1.0)):
+        best = qt.otto_max_work(H, T_cold=0.05, T_hot=0.2)
+        assert best.curzon_ahlborn < best.efficiency < best.carnot_efficiency
+        # it really is the maximum: nudging the ratio either way loses work
+        for dr in (-1e-3, 1e-3):
+            w = -ideal_otto((best.ratio + dr) * H, H, 0.05, 0.2,
+                            follow_crossings=False).work
+            assert w < best.work

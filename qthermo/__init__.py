@@ -106,7 +106,8 @@ from .information import (
     thermodynamic_length,
 )
 from .baths import instantaneous_bath
-from .engines import OttoLimit, adiabatic_pairing, ideal_otto, otto_cycle
+from .engines import (MaxWorkOtto, OttoLimit, adiabatic_pairing, ideal_otto,
+                      otto_cycle, otto_max_work)
 from .audit import AuditReport, Finding, audit
 from .counting import CycleCounting, cycle_counting
 from .modes import MODES, classify, mode_map
@@ -165,6 +166,7 @@ __all__ = [
     "landauer_erasure", "landauer_bound", "ErasureResult", "geodesic_schedule",
     "thermodynamic_length", "predicted_excess", "instantaneous_bath",
     "ideal_otto", "otto_cycle", "OttoLimit", "adiabatic_pairing",
+    "otto_max_work", "MaxWorkOtto",
     "audit", "AuditReport", "Finding",
     "cycle_counting", "CycleCounting",
     "classify", "mode_map", "MODES",

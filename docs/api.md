@@ -213,6 +213,10 @@ Stroke engines with interacting, multi-qubit working media.
   Four-stroke Otto cycle for an arbitrary (multi-qubit) working medium.
 - **`adiabatic_pairing(H_start, H_end, path=None, points: 'int' = 400, tol: 'float' = 1e-09) -> 'np.ndarray'`**  
   Which eigenstate of ``H_end`` each eigenstate of ``H_start`` becomes.
+- **`class MaxWorkOtto(ratio: 'float', work: 'float', efficiency: 'float', T_cold: 'float', T_hot: 'float') -> None`**  
+  Quasi-static Otto cycle tuned to the compression that maximises work.
+- **`otto_max_work(H_hot, T_cold: 'float', T_hot: 'float', xatol: 'float' = 1e-12) -> 'MaxWorkOtto'`**  
+  Efficiency of the quasi-static Otto cycle at maximum work per cycle.
 
 ### `qthermo.modes`
 

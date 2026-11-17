@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Efficiency at maximum work:** `otto_max_work(H_hot, T_cold, T_hot)`
+  finds the Otto compression ratio that extracts the most work per cycle and
+  reports its efficiency next to Curzon-Ahlborn and Carnot. A harmonic
+  oscillator lands on Curzon-Ahlborn at high temperature (Leff 1987; Rezek &
+  Kosloff 2006), a qubit on half of Carnot, and both rise above
+  Curzon-Ahlborn in the quantum regime (Deffner 2018). Three new tests.
+
 ## 0.7.0
 
 - **Pick a paper and run it:** `python -m qthermo` lists five reproduced
